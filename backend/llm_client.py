@@ -60,8 +60,8 @@ Request: {request}
 
 Select the best tool and parameters for this security testing request."""
 
-# Path to llama-server.exe relative to project root
-LLAMA_SERVER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# Path to llama-server.exe — in binaries/ next to project root
+LLAMA_SERVER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "binaries"))
 LLAMA_SERVER_EXE = os.path.join(LLAMA_SERVER_DIR, "llama-server.exe")
 LLAMA_SERVER_URL = "http://127.0.0.1:8081"
 
@@ -139,14 +139,16 @@ class BaronLLM:
         except Exception:
             return False
 
-    def _chat(self, messages: List[Dict], temperature: float = 0.1, max_tokens: int = 512) -> str:
+    def _chat(self, messages: List[Dict], temperature: float = 0.1, max_tokens: int = 512, json_mode: bool = True) -> str:
         """Send chat completion request to llama-server."""
-        payload = json.dumps({
+        payload_dict: Dict[str, Any] = {
             "messages": messages,
             "temperature": temperature,
             "n_predict": max_tokens,
-            "response_format": {"type": "json_object"},
-        }).encode()
+        }
+        if json_mode:
+            payload_dict["response_format"] = {"type": "json_object"}
+        payload = json.dumps(payload_dict).encode()
 
         req = urllib.request.Request(
             f"{LLAMA_SERVER_URL}/v1/chat/completions",
@@ -237,6 +239,40 @@ class BaronLLM:
         except Exception as e:
             logger.error(f"AlphaLLM inference failed: {e}")
             return self._error_response(f"Model inference error: {str(e)}")
+
+    def interpret_output(self, tool_name: str, raw_output: str, target: str) -> str:
+        """Interpret raw tool output and return a plain-text security assessment."""
+        if not self._loaded:
+            return ""
+
+        system = (
+            "You are AlphaLLM, a cybersecurity analyst. "
+            "Analyze tool output and respond ONLY in this exact two-section structure — no extra text before or after:\n\n"
+            "FINDINGS\n"
+            "• <one bullet per discovery — include port, protocol, service name, version if present, and state>\n"
+            "• <host status, latency, OS hints, or banner info if available>\n\n"
+            "RISK\n"
+            "• <one bullet per security concern — be specific: service name + reason it matters>\n\n"
+            "Rules: bullets only, no intro sentence, no recommendations, no 'Next Steps', technical precision."
+        )
+        user_msg = (
+            f"Tool: {tool_name}  |  Target: {target}\n\n"
+            f"{raw_output[:3000]}"
+        )
+
+        try:
+            return self._chat(
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user_msg},
+                ],
+                temperature=0.15,
+                max_tokens=350,
+                json_mode=False,
+            ).strip()
+        except Exception as e:
+            logger.error(f"interpret_output failed: {e}")
+            return ""
 
     def analyze_code(self, code: str, language: str = "unknown", filename: Optional[str] = None) -> Dict[str, Any]:
         if not self._loaded:

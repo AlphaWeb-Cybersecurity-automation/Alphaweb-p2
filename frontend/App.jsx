@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import ActivityBar from './components/ActivityBar/ActivityBar.jsx'
 import SideBar     from './components/SideBar/SideBar.jsx'
 import Editor      from './components/Editor/Editor.jsx'
@@ -7,19 +7,21 @@ import AgentChat   from './components/AgentChat/AgentChat.jsx'
 import StatusBar   from './components/StatusBar/StatusBar.jsx'
 import './App.css'
 
-const DEFAULT_FILE = { id: 'm1', name: 'android_main_apk_analysis.yaml', ext: 'yaml' }
-
 export default function App() {
   const [activeView, setActiveView] = useState('scanner')
 
   // Editor open tabs
-  const [openFiles, setOpenFiles]   = useState([DEFAULT_FILE])
-  const [activeFile, setActiveFile] = useState(DEFAULT_FILE.name)
+  const [openFiles, setOpenFiles]   = useState([])
+  const [activeFile, setActiveFile] = useState(null)
 
   // Terminal controls
   const [termVisible,   setTermVisible]   = useState(true)
   const [termMaximized, setTermMaximized] = useState(false)
   const [termClearKey,  setTermClearKey]  = useState(0)
+
+  // Terminal console logs (from scan output)
+  const [termLogs, setTermLogs] = useState([])
+  const addTermLogs = useCallback((lines) => setTermLogs(prev => [...prev, ...lines]), [])
 
   // Toast
   const [toast, setToast] = useState(null)
@@ -69,13 +71,14 @@ export default function App() {
         onCloseTab={closeTab}
       />
 
-      <AgentChat />
+      <AgentChat onScanOutput={addTermLogs} />
 
       <Terminal
         clearKey={termClearKey}
+        logs={termLogs}
         maximized={termMaximized}
         visible={termVisible}
-        onClear={() => { setTermClearKey(k => k + 1); showToast('Console cleared', 'info') }}
+        onClear={() => { setTermClearKey(k => k + 1); setTermLogs([]); showToast('Console cleared', 'info') }}
         onMaximize={() => setTermMaximized(m => !m)}
         onClose={() => setTermVisible(false)}
       />

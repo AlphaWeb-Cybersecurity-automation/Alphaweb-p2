@@ -1,29 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './Terminal.css'
 
-// ── Log data ─────────────────────────────────────────────────────────────────
-const LOGS = [
-  { type: 'info',    icon: '▶', msg: 'Connecting to local container registry...', detail: 'alphaweb-local',                          ts: '09:14:01' },
-  { type: 'success', icon: '✓', msg: 'Container registry connection established',  detail: null,                                      ts: '09:14:01' },
-  { type: 'info',    icon: '▶', msg: 'Resolving tool availability for task:',      detail: 'mobile_analysis_001',                     ts: '09:14:02' },
-  { type: 'success', icon: '✓', msg: 'apktool',                                    detail: '(local-container)  ·  ready  ·  v2.9.3',  ts: '09:14:02' },
-  { type: 'success', icon: '✓', msg: 'semgrep',                                    detail: '(local-container)  ·  ready  ·  v1.45.0', ts: '09:14:02' },
-  { type: 'success', icon: '✓', msg: 'schemathesis',                               detail: '(local-container)  ·  ready  ·  v3.28.0', ts: '09:14:03' },
-  { type: 'pending', icon: '⟳', msg: 'Loading task configuration:',                detail: 'android_main_apk_analysis.yaml',           ts: '09:14:03' },
-  { type: 'success', icon: '✓', msg: 'Task configuration loaded successfully',     detail: null,                                      ts: '09:14:03' },
-  { type: 'pending', icon: '⟳', msg: 'Initializing dynamic orchestration engine...', detail: null,                                    ts: '09:14:04' },
-  { type: 'success', icon: '✓', msg: 'Orchestration engine initialized',           detail: 'Region: Hyderabad',                        ts: '09:14:04' },
-  { type: 'pending', icon: '⟳', msg: 'Stage 1: APK Decompilation',                detail: '(apktool)',                                ts: '09:14:05' },
-  { type: 'success', icon: '✓', msg: 'apktool container started',                  detail: 'Container ID: a3f9b2c1d4e5f6a7',           ts: '09:14:06' },
-  { type: 'success', icon: '✓', msg: 'Decompilation complete',                     detail: '847 files extracted  ·  2.3 MB',           ts: '09:14:12' },
-  { type: 'pending', icon: '⟳', msg: 'Stage 2: Static Analysis',                  detail: '(semgrep)',                                ts: '09:14:12' },
-  { type: 'success', icon: '✓', msg: 'semgrep container started',                  detail: 'Container ID: d4e5f6a7b8c9d0e1',           ts: '09:14:13' },
-  { type: 'pending', icon: '⟳', msg: 'Running mobile-security ruleset...',         detail: null,                                      ts: '09:14:13' },
-  { type: 'warning', icon: '!', msg: 'Found 3 high-severity issues in',            detail: 'com/example/MainActivity.java',             ts: '09:14:18' },
-  { type: 'warning', icon: '!', msg: 'Hardcoded API key detected:',                detail: 'API_KEY = "sk-proj-..."  [CRITICAL]',       ts: '09:14:18' },
-  { type: 'success', icon: '✓', msg: 'Scan progress:',                             detail: '20% complete  ·  Stage 2 of 5',            ts: '09:14:19' },
-]
-
 const PROBLEMS = [
   { sev: 'critical', file: 'MainActivity.java',  line: 47,  msg: 'Hardcoded API key: API_KEY = "sk-proj-..."' },
   { sev: 'high',     file: 'NetworkHelper.java',  line: 23,  msg: 'Improper certificate validation — TrustAll detected' },
@@ -40,7 +17,11 @@ const SEV_COLORS = {
 }
 
 // ── Tab panels ────────────────────────────────────────────────────────────────
-function ConsolePanel({ visible: count, bottomRef }) {
+function ConsolePanel({ logs, bottomRef }) {
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs])
+
   return (
     <div className="term-body">
       <div className="term-prompt">
@@ -48,26 +29,40 @@ function ConsolePanel({ visible: count, bottomRef }) {
         <span className="term-prompt__at">@</span>
         <span className="term-prompt__host">hyderabad</span>
         <span className="term-prompt__sep">:</span>
-        <span className="term-prompt__path">~/Mobile_Analysis</span>
+        <span className="term-prompt__path">~</span>
         <span className="term-prompt__char">$&nbsp;</span>
-        <span className="term-prompt__cmd">alphaweb run android_main_apk_analysis.yaml</span>
+        <span className="term-prompt__cmd blink">▋</span>
       </div>
 
-      {LOGS.slice(0, count).map((log, i) => (
-        <div key={i} className={`term-entry term-entry--${log.type}`}>
-          <span className="term-ts">{log.ts}</span>
-          <span className={`term-icon term-icon--${log.type}`}>{log.icon}</span>
-          <span className="term-msg">{log.msg}</span>
-          {log.detail && (
-            <span className={`term-detail term-detail--${log.type}`}>&nbsp;{log.detail}</span>
-          )}
-        </div>
-      ))}
+      {logs.map((log, i) => {
+        if (log.type === 'cmd') {
+          return (
+            <div key={i} className="term-prompt" style={{ marginTop: 6 }}>
+              <span className="term-prompt__user">alphaweb</span>
+              <span className="term-prompt__at">@</span>
+              <span className="term-prompt__host">hyderabad</span>
+              <span className="term-prompt__sep">:</span>
+              <span className="term-prompt__path">~</span>
+              <span className="term-prompt__char">$&nbsp;</span>
+              <span className="term-prompt__cmd">{log.msg}</span>
+            </div>
+          )
+        }
+        return (
+          <div key={i} className={`term-entry term-entry--${log.type}`}>
+            <span className="term-ts">{log.ts}</span>
+            <span className={`term-icon term-icon--${log.type}`}>{log.icon}</span>
+            <span className="term-msg">{log.msg}</span>
+            {log.detail && (
+              <span className={`term-detail term-detail--${log.type}`}>&nbsp;{log.detail}</span>
+            )}
+          </div>
+        )
+      })}
 
-      {count < LOGS.length && (
-        <div className="term-entry term-entry--loading">
-          <span className="term-spinner">⠋</span>
-          <span className="term-msg term-msg--dim">Processing...</span>
+      {logs.length === 0 && (
+        <div className="term-entry term-entry--info" style={{ opacity: 0.4, paddingTop: 8 }}>
+          <span className="term-msg">Waiting for scan output...</span>
         </div>
       )}
 
@@ -155,26 +150,9 @@ function DebugPanel() {
 }
 
 // ── Terminal ──────────────────────────────────────────────────────────────────
-export default function Terminal({ clearKey = 0, maximized = false, onClear, onMaximize, onClose }) {
-  const [visibleCount, setVisibleCount] = useState(0)
-  const [activeTab,    setActiveTab]    = useState('console')
+export default function Terminal({ clearKey = 0, logs = [], maximized = false, onClear, onMaximize, onClose }) {
+  const [activeTab, setActiveTab] = useState('console')
   const bottomRef = useRef(null)
-
-  // Reset log stream on clear
-  useEffect(() => { setVisibleCount(0) }, [clearKey])
-
-  // Stream in logs
-  useEffect(() => {
-    if (activeTab !== 'console') return
-    if (visibleCount >= LOGS.length) return
-    const t = setTimeout(() => setVisibleCount(v => v + 1), 220)
-    return () => clearTimeout(t)
-  }, [visibleCount, activeTab])
-
-  // Auto-scroll
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [visibleCount])
 
   const TABS = [
     { id: 'console',  label: 'TOOL ORCHESTRATION CONSOLE', dot: true },
@@ -213,7 +191,7 @@ export default function Terminal({ clearKey = 0, maximized = false, onClear, onM
       </div>
 
       {/* ── Panel ── */}
-      {activeTab === 'console'  && <ConsolePanel  visible={visibleCount} bottomRef={bottomRef} />}
+      {activeTab === 'console'  && <ConsolePanel  logs={logs} bottomRef={bottomRef} />}
       {activeTab === 'problems' && <ProblemsPanel />}
       {activeTab === 'output'   && <OutputPanel />}
       {activeTab === 'debug'    && <DebugPanel />}

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import Settings
 from database import Anomaly, ExecutionLog, ScanJob, SessionLocal, WorkflowStep, init_db
@@ -344,7 +344,7 @@ app = FastAPI(title="AlphaWeb - Cybersecurity Automation Platform", lifespan=lif
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -654,6 +654,103 @@ async def health() -> Any:
     )
 
 
+# --- Chat endpoint (used by AgentChat frontend) ---
+
+class ChatRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=4096)
+    domain: str = Field(min_length=1, max_length=2048)
+
+
+class ChatResponse(BaseModel):
+    ai_message: str
+    tool_used: Optional[str] = None
+    raw_output: Optional[str] = None
+    error: Optional[str] = None
+
+
+TOOL_DEFAULT_ARGS: Dict[str, str] = {
+    "nmap":     "-sV -sC --top-ports 1000",
+    "masscan":  "-p1-1000 --rate=500",
+    "nikto":    "-h",
+    "sqlmap":   "--dbs --batch",
+    "ffuf":     "",
+    "gobuster": "dir",
+    "hydra":    "",
+    "john":     "",
+    "tcpdump":  "-c 20",
+    "curl":     "-sv",
+    "nuclei":   "",
+    "hashcat":  "",
+    "gitleaks": "",
+}
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest) -> Any:
+    target = req.domain.strip()
+
+    target_check = validate_target_enhanced(target)
+    if not target_check.valid:
+        return ChatResponse(
+            ai_message=f"Invalid target: {target_check.errors[0]}",
+            error=target_check.errors[0],
+        )
+
+    # Detect every tool mentioned in the prompt
+    tools = _detect_all_tools(req.prompt)
+
+    # Run all tools in parallel
+    async def _run_one(tool_name: str):
+        args = TOOL_DEFAULT_ARGS.get(tool_name, "")
+        try:
+            result = await run_tool(tool_name=tool_name, args=args, target=target, settings=settings)
+            return tool_name, result.raw_output[:settings.TOOL_OUTPUT_MAX_CHARS], None
+        except Exception as exc:
+            return tool_name, "", str(exc)
+
+    results = await asyncio.gather(*[_run_one(t) for t in tools])
+
+    # Build combined raw output with per-tool headers
+    combined_raw = ""
+    tools_used: List[str] = []
+    tool_errors: List[str] = []
+    for tool_name, raw, err in results:
+        tools_used.append(tool_name)
+        if err:
+            tool_errors.append(f"{tool_name}: {err}")
+            combined_raw += f"\n=== {tool_name.upper()} ERROR ===\n{err}\n"
+        else:
+            combined_raw += f"\n=== {tool_name.upper()} ===\n{raw}\n"
+
+    # Ask BarronLLM to interpret combined output
+    baron = get_baron(settings)
+    llm_analysis = ""
+    if baron.is_loaded and combined_raw.strip():
+        try:
+            llm_analysis = await asyncio.to_thread(
+                baron.interpret_output,
+                ", ".join(tools_used),
+                combined_raw[:4000],
+                target,
+            )
+        except Exception as llm_err:
+            logger.warning(f"interpret_output failed: {llm_err}")
+
+    if not llm_analysis:
+        lines = combined_raw.count('\n') + 1
+        llm_analysis = (
+            f"Ran {', '.join(t.upper() for t in tools_used)} against {target}. "
+            f"{lines} lines of output captured."
+            + (f"\nErrors: {'; '.join(tool_errors)}" if tool_errors else "")
+        )
+
+    return ChatResponse(
+        ai_message=llm_analysis,
+        tool_used=", ".join(tools_used),
+        raw_output=combined_raw.strip(),
+    )
+
+
 # --- Legacy endpoint ---
 
 @app.post("/execute", response_model=ExecuteResponse)
@@ -743,6 +840,18 @@ KEYWORD_TOOL_MAP = {
     "leak": "gitleaks",
     "git": "gitleaks",
 }
+
+
+def _detect_all_tools(request_text: str) -> List[str]:
+    """Return every tool keyword matched in the prompt, preserving order, no duplicates."""
+    text = request_text.lower()
+    found: List[str] = []
+    seen: set = set()
+    for keyword, tool in KEYWORD_TOOL_MAP.items():
+        if keyword in text and tool not in seen:
+            found.append(tool)
+            seen.add(tool)
+    return found if found else ["nmap"]
 
 
 def _fallback_tool_selection(request_text: str) -> Dict[str, Any]:

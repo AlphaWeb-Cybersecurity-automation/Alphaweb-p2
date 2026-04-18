@@ -116,6 +116,12 @@
 .term-prompt__path { color: var(--cyan); }
 .term-prompt__char { color: var(--text-dim); margin: 0 2px; }
 .term-prompt__cmd  { color: var(--text-primary); }
+.term-prompt__cmd.blink { animation: cursor-blink 1.1s step-end infinite; color: var(--cyan); }
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
 
 .term-entry {
   display: flex;
@@ -150,6 +156,10 @@
 
 .term-entry--loading { color: var(--text-dim); gap: 7px; }
 .term-spinner { color: var(--cyan); font-size: 13px; }
+.term-entry--dim  .term-msg { color: var(--text-dim); }
+.term-icon--dim   { color: var(--text-dim); }
+.term-entry--error .term-msg { color: var(--red); }
+.term-detail--pending { color: var(--gold); }
 
 /* ── Problems tab ────────────────────────────────────── */
 .term-problems-summary {
