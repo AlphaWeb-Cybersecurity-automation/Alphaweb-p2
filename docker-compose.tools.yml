@@ -1,0 +1,41 @@
+services:
+  nmap:
+    build: { context: ./tools/nmap }
+    image: nmap:latest
+
+  masscan:
+    build: { context: ./tools/masscan }
+    image: masscan:latest
+
+  nikto:
+    build: { context: ./tools/nikto }
+    image: nikto:latest
+
+  sqlmap:
+    build: { context: ./tools/sqlmap }
+    image: sqlmap:latest
+
+  ffuf:
+    build: { context: ./tools/ffuf }
+    image: ffuf:latest
+
+  gobuster:
+    build: { context: ./tools/gobuster }
+    image: gobuster:latest
+
+  john:
+    build: { context: ./tools/john }
+    image: john:latest
+
+  hydra:
+    build: { context: ./tools/hydra }
+    image: hydra:latest
+
+  curl:
+    build: { context: ./tools/curl }
+    image: curl:latest
+
+  tcpdump:
+    build: { context: ./tools/tcpdump }
+    image: tcpdump:latest
+

@@ -1,0 +1,119 @@
+.activity-bar {
+  grid-area: activity;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 0;
+  z-index: 10;
+  user-select: none;
+}
+
+/* Logo */
+.activity-bar__logo {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.activity-bar__logo-glyph {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--cyan);
+  text-shadow: 0 0 10px var(--cyan), 0 0 22px var(--cyan-dim);
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+/* Nav */
+.activity-bar__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 0;
+  width: 100%;
+}
+
+.activity-bar__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  width: 100%;
+  border-top: 1px solid var(--border);
+}
+
+/* Button */
+.ab-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+  margin: 0 4px;
+}
+
+.ab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.ab-btn--active {
+  color: var(--cyan) !important;
+  background: var(--cyan-glow) !important;
+  box-shadow: inset 3px 0 0 var(--cyan);
+}
+
+.ab-btn__icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ab-btn__icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Tooltip */
+.ab-btn__tooltip {
+  display: none;
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  border: 1px solid var(--border-bright);
+  white-space: nowrap;
+  z-index: 200;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.ab-btn:hover .ab-btn__tooltip {
+  display: block;
+}

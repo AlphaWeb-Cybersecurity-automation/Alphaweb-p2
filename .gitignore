@@ -1,0 +1,35 @@
+# IDE & Editor
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+venv/
+env/
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Binaries (compiled executables and DLLs)
+**/binaries/
+
+# Database & Cache
+*.db
+*.sqlite
+*.sqlite3
+
+backend/models

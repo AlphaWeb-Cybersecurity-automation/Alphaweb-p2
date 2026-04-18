@@ -1,0 +1,102 @@
+.status-bar {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Groups */
+.sb-group {
+  display: flex;
+  align-items: center;
+}
+
+.sb-group--left   { flex: 1; }
+.sb-group--center { justify-content: center; }
+.sb-group--right  { justify-content: flex-end; }
+
+/* Segment */
+.sb-seg {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 26px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: default;
+  transition: background 0.12s;
+}
+
+.sb-seg:hover { background: var(--bg-hover); }
+
+.sb-seg--btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-left: 2px solid var(--cyan);
+  animation: terminal-pulse 1.5s ease-in-out infinite;
+}
+.sb-seg--btn:hover { background: var(--cyan-glow) !important; }
+
+@keyframes terminal-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
+.sb-seg--clean { color: var(--green); }
+
+/* Icons */
+.sb-ok   { color: var(--green);  font-size: 10px; }
+.sb-warn { color: var(--orange); font-size: 10px; }
+
+/* Key / value */
+.sb-key           { color: var(--text-dim); }
+.sb-val           { color: var(--text-secondary); }
+.sb-val--gold     { color: var(--gold); }
+.sb-val--cyan     { color: var(--cyan); }
+.sb-val--dim      { color: var(--text-dim); }
+
+/* Badges */
+.sb-badge {
+  font-size: 9px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.sb-badge--idle {
+  color: var(--gold);
+  background: var(--gold-glow);
+  border: 1px solid rgba(255,215,0,0.3);
+}
+
+/* Divider */
+.sb-div {
+  width: 1px;
+  height: 13px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Progress bar */
+.sb-bar {
+  width: 64px;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sb-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  border-radius: 2px;
+  box-shadow: 0 0 5px var(--cyan-glow);
+  transition: width 0.4s ease;
+}
