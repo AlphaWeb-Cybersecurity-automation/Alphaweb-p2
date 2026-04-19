@@ -383,16 +383,22 @@
   border-color: var(--border-bright);
 }
 
+.qa-row__badge--active {
+  color: var(--cyan);
+  background: rgba(0,229,255,0.08);
+  border-color: rgba(0,229,255,0.35);
+}
+
 .qa-ml-btn {
   border-top: 1px solid var(--border);
-  opacity: 0.55;
-  cursor: not-allowed !important;
+  opacity: 1;
+  cursor: pointer !important;
 }
 
 .qa-ml-btn:hover {
-  background: transparent !important;
-  border-left-color: transparent !important;
-  opacity: 0.7;
+  background: var(--bg-hover) !important;
+  border-left-color: var(--cyan) !important;
+  opacity: 1;
 }
 
 .qa-row__icon--ml {

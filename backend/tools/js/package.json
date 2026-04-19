@@ -1,0 +1,10 @@
+{
+  "name": "alphaweb-eslint",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-no-unsanitized": "^4.1.2"
+  }
+}

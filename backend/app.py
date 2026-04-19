@@ -126,7 +126,6 @@ class AnalyzeCodeRequest(BaseModel):
     code: str
     language: Optional[str] = None
     filename: Optional[str] = None
-    scan_type: Optional[str] = "full"
 
 
 class CodeVulnerability(BaseModel):
@@ -136,18 +135,18 @@ class CodeVulnerability(BaseModel):
     code_snippet: Optional[str] = None
     issue: str
     fix: Optional[str] = None
-    file: Optional[str] = None
+    cwe: Optional[str] = None
 
 
 class AnalyzeCodeResponse(BaseModel):
-    scan_id: str
+    analysis_id: str
+    language: str = "unknown"
     vulnerabilities: List[CodeVulnerability] = []
     total_vulnerabilities: int = 0
     critical: int = 0
     high: int = 0
     medium: int = 0
     low: int = 0
-    summary: str = ""
 
 
 class ScanListItem(BaseModel):
@@ -546,42 +545,45 @@ async def get_scan_workflow(scan_id: str) -> Any:
     )
 
 
-@app.post("/api/analyze-code", response_model=AnalyzeCodeResponse)
+@app.post("/analyze-code", response_model=AnalyzeCodeResponse)
 async def analyze_code(req: AnalyzeCodeRequest) -> Any:
-    """Analyze code for security vulnerabilities using BaronLLM."""
-    scan_id = str(uuid.uuid4())
-    baron = get_baron(settings)
+    from services.code_analyzer import analyze as _analyze
 
-    if baron.is_loaded:
-        analysis = await asyncio.to_thread(
-            baron.analyze_code, req.code, req.language or "unknown", req.filename
+    try:
+        result = await asyncio.to_thread(_analyze, req.code, req.language, req.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    tool_error = result.pop("tool_error", None)
+
+    # Fall back to baron/regex if static tool missing
+    if tool_error and "Tool not found" in tool_error:
+        logger.warning(f"Static analysis tool unavailable: {tool_error} — falling back")
+        baron = get_baron(settings)
+        if baron.is_loaded:
+            fallback = await asyncio.to_thread(
+                baron.analyze_code, req.code, result["language"], req.filename
+            )
+            raw_vulns = fallback.get("vulnerabilities", [])
+        else:
+            raw_vulns = _fallback_code_analysis(req.code, req.filename)
+
+        counts: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for v in raw_vulns:
+            sev = v.get("severity", "low").lower()
+            if sev in counts:
+                counts[sev] += 1
+
+        return AnalyzeCodeResponse(
+            analysis_id=result["analysis_id"],
+            language=result["language"],
+            vulnerabilities=[CodeVulnerability(**v) for v in raw_vulns],
+            total_vulnerabilities=len(raw_vulns),
+            **counts,
         )
-        vulns = [
-            CodeVulnerability(**v) for v in analysis.get("vulnerabilities", [])
-        ]
-    else:
-        raw_vulns = _fallback_code_analysis(req.code, req.filename)
-        vulns = [CodeVulnerability(**v) for v in raw_vulns]
 
-    # Count severities
-    counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-    for v in vulns:
-        sev = v.severity.lower()
-        if sev in counts:
-            counts[sev] += 1
-
-    return AnalyzeCodeResponse(
-        scan_id=scan_id,
-        vulnerabilities=vulns,
-        total_vulnerabilities=len(vulns),
-        critical=counts["critical"],
-        high=counts["high"],
-        medium=counts["medium"],
-        low=counts["low"],
-        summary=f"Found {len(vulns)} vulnerability(ies): "
-                f"{counts['critical']} critical, {counts['high']} high, "
-                f"{counts['medium']} medium, {counts['low']} low",
-    )
+    vulns = [CodeVulnerability(**v) for v in result.pop("vulnerabilities", [])]
+    return AnalyzeCodeResponse(vulnerabilities=vulns, **result)
 
 
 @app.post("/api/validate", response_model=ValidateResponse)

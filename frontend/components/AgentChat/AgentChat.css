@@ -15,19 +15,42 @@
   flex-shrink: 0;
 }
 
-.ac-ascii {
+.ac-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.ac-title-text {
   font-family: var(--font-mono);
-  font-size: 7.5px;
-  line-height: 1.35;
-  white-space: pre;
-  letter-spacing: 0;
-  background: linear-gradient(100deg, var(--gold) 0%, var(--cyan) 55%, var(--gold) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 13px;
   font-weight: 700;
-  margin-bottom: 5px;
-  overflow: hidden;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow:
+    0 0 6px rgba(255, 215, 0, 0.85),
+    0 0 14px rgba(255, 215, 0, 0.45),
+    0 0 30px rgba(255, 215, 0, 0.2);
+  white-space: nowrap;
+  animation: retro-flicker 6s infinite;
+}
+
+@keyframes retro-flicker {
+  0%, 94%, 96%, 98%, 100% {
+    opacity: 1;
+    text-shadow:
+      0 0 6px rgba(255, 215, 0, 0.85),
+      0 0 14px rgba(255, 215, 0, 0.45),
+      0 0 30px rgba(255, 215, 0, 0.2);
+  }
+  95%, 97% {
+    opacity: 0.75;
+    text-shadow: none;
+  }
 }
 
 .ac-subtitle {
@@ -35,21 +58,7 @@
   font-size: 8px;
   letter-spacing: 0.13em;
   color: var(--text-dim);
-  text-align: center;
-  margin-bottom: 5px;
-}
-
-.ac-badge {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  text-align: center;
-  color: var(--green);
-  background: var(--green-glow);
-  border: 1px solid rgba(57, 255, 20, 0.3);
-  border-radius: 5px;
-  padding: 3px 10px;
-  margin-bottom: 7px;
-  letter-spacing: 0.04em;
+  margin: 0;
 }
 
 .ac-model-row {

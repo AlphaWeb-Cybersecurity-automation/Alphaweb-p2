@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import './SideBar.css'
 
 const SECTION_LABELS = {
@@ -28,16 +28,9 @@ function formatSize(bytes) {
 }
 
 export default function SideBar({ activeView, activeFile, onFileOpen, onToast, onFilesChange }) {
-  const [files, setFiles]         = useState([])
-  const [dragging, setDragging]   = useState(false)
-  const [creating, setCreating]   = useState(false)
-  const [createName, setCreateName] = useState('')
-  const fileInputRef  = useRef(null)
-  const createInputRef = useRef(null)
-
-  useEffect(() => {
-    if (creating) createInputRef.current?.focus()
-  }, [creating])
+  const [files, setFiles]       = useState([])
+  const [dragging, setDragging] = useState(false)
+  const fileInputRef = useRef(null)
 
   const addFiles = useCallback((fileList) => {
     const items = Array.from(fileList).map(f => ({
@@ -55,7 +48,7 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
       return next
     })
 
-    items.forEach(item => onFileOpen?.({ id: item.id, name: item.name, ext: item.ext }))
+    items.forEach(item => onFileOpen?.({ id: item.id, name: item.name, ext: item.ext, fileObj: item.file }))
     onToast?.(`${items.length} file${items.length > 1 ? 's' : ''} uploaded`, 'success')
   }, [onFileOpen, onFilesChange, onToast])
 
@@ -65,29 +58,6 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
       onFilesChange?.(next)
       return next
     })
-  }
-
-  function commitCreate() {
-    const name = createName.trim()
-    setCreating(false)
-    setCreateName('')
-    if (!name) return
-    const ext  = name.includes('.') ? name.split('.').pop().toLowerCase() : ''
-    const item = {
-      id:   `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name,
-      size: 0,
-      ext,
-      file: null,
-      ts:   new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    }
-    setFiles(prev => {
-      const next = [...prev, item]
-      onFilesChange?.(next)
-      return next
-    })
-    onFileOpen?.({ id: item.id, name: item.name, ext: item.ext })
-    onToast?.(`Created ${name}`, 'success')
   }
 
   function handleDrop(e) {
@@ -107,17 +77,6 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
       <div className="sidebar__header">
         <span className="sidebar__title">ALPHAWEB_WORKSPACE</span>
         <div className="sidebar__hdr-actions">
-          <button
-            className="sidebar__hdr-btn"
-            title="New File"
-            onClick={() => setCreating(true)}
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" width="13" height="13">
-              <rect x="2" y="1" width="9" height="13" rx="1"/>
-              <line x1="8" y1="6" x2="12" y2="6"/>
-              <line x1="10" y1="4" x2="10" y2="8"/>
-            </svg>
-          </button>
           <button
             className="sidebar__hdr-btn"
             title="Upload File"
@@ -170,25 +129,6 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
           )}
         </div>
 
-        {/* Inline create row */}
-        {creating && (
-          <div className="si-row si-row--creating" style={{ paddingLeft: 12 }}>
-            <span style={{ fontSize: 13, color: 'var(--cyan)', flexShrink: 0 }}>·</span>
-            <input
-              ref={createInputRef}
-              className="si-create-input"
-              placeholder="filename.ext"
-              value={createName}
-              onChange={e => setCreateName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') commitCreate()
-                if (e.key === 'Escape') { setCreating(false); setCreateName('') }
-              }}
-              onBlur={commitCreate}
-            />
-          </div>
-        )}
-
         {/* Uploaded file list */}
         {files.map(f => (
           <div
@@ -222,24 +162,6 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
         <div className="sidebar__qa-label">QUICK ACTIONS</div>
 
         <button
-          className="qa-row qa-row--sec"
-          onClick={() => setCreating(true)}
-        >
-          <span className="qa-row__icon">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4"
-                 strokeLinecap="round" strokeLinejoin="round">
-              <rect x="4" y="2" width="12" height="16" rx="1.5"/>
-              <line x1="10" y1="7" x2="10" y2="13"/>
-              <line x1="7" y1="10" x2="13" y2="10"/>
-            </svg>
-          </span>
-          <div className="qa-row__text">
-            <span className="qa-row__label">New File</span>
-            <span className="qa-row__sub">Create file in workspace</span>
-          </div>
-        </button>
-
-        <button
           className="qa-row qa-row--primary"
           onClick={() => fileInputRef.current?.click()}
         >
@@ -259,7 +181,11 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
           <span className="qa-row__badge">NEW</span>
         </button>
 
-        <button className="qa-row qa-ml-btn" disabled>
+        <button
+          className="qa-row qa-ml-btn"
+          onClick={() => fileInputRef.current?.click()}
+          title="Upload a code file — opens in editor with Analyze button"
+        >
           <span className="qa-row__icon qa-row__icon--ml">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4"
                  strokeLinecap="round" strokeLinejoin="round">
@@ -270,9 +196,9 @@ export default function SideBar({ activeView, activeFile, onFileOpen, onToast, o
           </span>
           <div className="qa-row__text">
             <span className="qa-row__label">ML Security Scan</span>
-            <span className="qa-row__sub">Code vulnerability detection</span>
+            <span className="qa-row__sub">Upload code → auto-analyze</span>
           </div>
-          <span className="qa-row__badge qa-row__badge--soon">SOON</span>
+          <span className="qa-row__badge qa-row__badge--active">↑ Upload</span>
         </button>
       </div>
 

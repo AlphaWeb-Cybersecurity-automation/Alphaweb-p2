@@ -130,40 +130,15 @@ export default function AgentChat({ onScanOutput }) {
     <section className="agent-chat">
       {/* ── Header ── */}
       <div className="ac-header">
-        <pre className="ac-ascii">{
-`╔═╗╦  ╔═╗╦ ╦╔═╗  ╦ ╦╔═╗╔╗
- ╠═╣║  ╠═╝╠═╣╠═╣  ║║║║╣ ╠╩╗
- ╩ ╩╩═╝╩  ╩ ╩╩ ╩  ╚╩╝╚═╝╚═╝
-      ╔═╗╔═╗╔═╗╔╗╔╔╦╗
-      ╠═╣║ ╦║╣ ║║║ ║
-      ╩ ╩╚═╝╚═╝╝╚╝ ╩          `
-        }</pre>
+        <div className="ac-header-row">
+          <span className="ac-title-text">AlphaWeb Agent</span>
+          <div className="ac-model-row">
+            <span className="ac-model-dot" />
+            <span className="ac-model-name">ALPHA-LLM</span>
+            <span className="ac-model-status">{modelStatus}</span>
+          </div>
+        </div>
         <p className="ac-subtitle">AI-POWERED CYBERSECURITY AUTOMATION PLATFORM</p>
-        <p className="ac-badge">🛡</p>
-        <div className="ac-model-row">
-          <span className="ac-model-dot" />
-          <span className="ac-model-name">ALPHA-LLM</span>
-          <span className="ac-model-status">{modelStatus}</span>
-        </div>
-      </div>
-
-      {/* ── Target Domain ── */}
-      <div className="ac-domain-section">
-        <label className="ac-domain-label">TARGET DOMAIN / IP</label>
-        <div className="ac-domain-row">
-          <input
-            className={`ac-domain-input ${domainError ? 'ac-domain-input--error' : domain ? 'ac-domain-input--ok' : ''}`}
-            placeholder="https://example.com  or  192.168.1.1"
-            value={domain}
-            onChange={e => { setDomain(e.target.value); setDomainError('') }}
-            onBlur={() => domain && setDomainError(validateDomain(domain))}
-          />
-          {domain && !domainError && <span className="ac-domain-check">✓</span>}
-        </div>
-        {domainError && <p className="ac-domain-err">{domainError}</p>}
-        <p className="ac-domain-hint">
-          Tools: {TOOLS.join(' · ')}
-        </p>
       </div>
 
       {/* ── Messages ── */}
@@ -210,6 +185,22 @@ export default function AgentChat({ onScanOutput }) {
         )}
 
         <div ref={endRef} />
+      </div>
+
+      {/* ── Target Domain ── */}
+      <div className="ac-domain-section">
+        <label className="ac-domain-label">TARGET DOMAIN / IP</label>
+        <div className="ac-domain-row">
+          <input
+            className={`ac-domain-input ${domainError ? 'ac-domain-input--error' : domain ? 'ac-domain-input--ok' : ''}`}
+            placeholder="https://example.com  or  192.168.1.1"
+            value={domain}
+            onChange={e => { setDomain(e.target.value); setDomainError('') }}
+            onBlur={() => domain && setDomainError(validateDomain(domain))}
+          />
+          {domain && !domainError && <span className="ac-domain-check">✓</span>}
+        </div>
+        {domainError && <p className="ac-domain-err">{domainError}</p>}
       </div>
 
       {/* ── Input ── */}
