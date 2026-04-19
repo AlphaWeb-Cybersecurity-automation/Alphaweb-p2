@@ -132,17 +132,17 @@ export default function AgentChat({ onScanOutput }) {
       <div className="ac-header">
         <pre className="ac-ascii">{
 `╔═╗╦  ╔═╗╦ ╦╔═╗  ╦ ╦╔═╗╔╗
-╠═╣║  ╠═╝╠═╣╠═╣  ║║║║╣ ╠╩╗
-╩ ╩╩═╝╩  ╩ ╩╩ ╩  ╚╩╝╚═╝╚═╝
-  ╔═╗╔═╗╔═╗╔╗╔╔╦╗
-  ╠═╣║ ╦║╣ ║║║ ║
-  ╩ ╩╚═╝╚═╝╝╚╝ ╩          `
+ ╠═╣║  ╠═╝╠═╣╠═╣  ║║║║╣ ╠╩╗
+ ╩ ╩╩═╝╩  ╩ ╩╩ ╩  ╚╩╝╚═╝╚═╝
+      ╔═╗╔═╗╔═╗╔╗╔╔╦╗
+      ╠═╣║ ╦║╣ ║║║ ║
+      ╩ ╩╚═╝╚═╝╝╚╝ ╩          `
         }</pre>
         <p className="ac-subtitle">AI-POWERED CYBERSECURITY AUTOMATION PLATFORM</p>
-        <p className="ac-badge">🛡 DEFENSIVE SECURITY ONLY 🔐</p>
+        <p className="ac-badge">🛡</p>
         <div className="ac-model-row">
           <span className="ac-model-dot" />
-          <span className="ac-model-name">BarronLLM</span>
+          <span className="ac-model-name">ALPHA-LLM</span>
           <span className="ac-model-status">{modelStatus}</span>
         </div>
       </div>

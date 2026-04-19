@@ -175,11 +175,26 @@ TOOL_COMMAND_BUILDERS["tcpdump"] = lambda a, t, s: _run_cmd_override("tcpdump", 
 
 
 def _tool_timeout_seconds(tool_name: str, settings: Settings) -> int:
-    # Sensible defaults; override globally via TOOL_EXECUTION_TIMEOUT_SECS.
+    # Per-tool timeouts. Global override in settings takes precedence.
+    TOOL_TIMEOUTS = {
+        "curl": 60,
+        "nmap": 300,
+        "masscan": 120,
+        "nikto": 600,
+        "sqlmap": 900,
+        "ffuf": 600,
+        "gobuster": 600,
+        "hydra": 1800,
+        "john": 3600,
+        "tcpdump": 60,
+        "nuclei": 600,
+        "hashcat": 3600,
+        "gitleaks": 300,
+    }
+
     if settings.TOOL_EXECUTION_TIMEOUT_SECS:
         return settings.TOOL_EXECUTION_TIMEOUT_SECS
-    # fallback (should never be hit)
-    return 900
+    return TOOL_TIMEOUTS.get(tool_name, 900)
 
 
 def run_tool_sync(*, tool_name: str, args: str, target: str, settings: Settings) -> ToolRunResult:
