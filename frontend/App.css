@@ -12,6 +12,15 @@
   background: var(--bg-primary);
 }
 
+/* Code analysis view: spans editor+chat columns */
+.app--analyzer {
+  grid-template-columns: 48px 260px 1fr;
+  grid-template-areas:
+    "activity sidebar analyzer"
+    "activity sidebar terminal"
+    "status   status  status";
+}
+
 /* Terminal states */
 .app--term-max    { --term-h: 60vh; }
 .app--term-hidden { --term-h: 0px; }

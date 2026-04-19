@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
-import ActivityBar from './components/ActivityBar/ActivityBar.jsx'
-import SideBar     from './components/SideBar/SideBar.jsx'
-import Editor      from './components/Editor/Editor.jsx'
-import Terminal    from './components/Terminal/Terminal.jsx'
-import AgentChat   from './components/AgentChat/AgentChat.jsx'
-import StatusBar   from './components/StatusBar/StatusBar.jsx'
+import ActivityBar   from './components/ActivityBar/ActivityBar.jsx'
+import SideBar       from './components/SideBar/SideBar.jsx'
+import Editor        from './components/Editor/Editor.jsx'
+import Terminal      from './components/Terminal/Terminal.jsx'
+import AgentChat     from './components/AgentChat/AgentChat.jsx'
+import StatusBar     from './components/StatusBar/StatusBar.jsx'
+import CodeAnalysis  from './components/CodeAnalysis/CodeAnalysis.jsx'
 import './App.css'
 
 export default function App() {
@@ -48,9 +49,12 @@ export default function App() {
     })
   }, [activeFile])
 
+  const isAnalyzer = activeView === 'code-analysis'
+
   return (
     <div className={[
       'app',
+      isAnalyzer     ? 'app--analyzer'    : '',
       termMaximized  ? 'app--term-max'    : '',
       !termVisible   ? 'app--term-hidden' : '',
     ].join(' ')}>
@@ -64,14 +68,19 @@ export default function App() {
         onToast={showToast}
       />
 
-      <Editor
-        openFiles={openFiles}
-        activeFile={activeFile}
-        onTabClick={setActiveFile}
-        onCloseTab={closeTab}
-      />
-
-      <AgentChat onScanOutput={addTermLogs} />
+      {isAnalyzer ? (
+        <CodeAnalysis />
+      ) : (
+        <>
+          <Editor
+            openFiles={openFiles}
+            activeFile={activeFile}
+            onTabClick={setActiveFile}
+            onCloseTab={closeTab}
+          />
+          <AgentChat onScanOutput={addTermLogs} />
+        </>
+      )}
 
       <Terminal
         clearKey={termClearKey}

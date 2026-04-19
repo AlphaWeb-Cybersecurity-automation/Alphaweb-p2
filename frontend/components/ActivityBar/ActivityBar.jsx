@@ -25,6 +25,19 @@ const NAV_ITEMS = [
     ),
   },
   {
+    id: 'code-analysis',
+    label: 'Code / APK Analysis',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="4,7 1,9 4,11"/>
+        <polyline points="20,7 23,9 20,11"/>
+        <line x1="14" y1="3" x2="10" y2="21"/>
+        <circle cx="12" cy="9" r="2.5" fill="currentColor" stroke="none" opacity="0.6"/>
+        <path d="M8 17h8" strokeWidth="1"/>
+      </svg>
+    ),
+  },
+  {
     id: 'orchestration',
     label: 'Orchestration',
     icon: (

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from config import Settings
@@ -584,6 +584,45 @@ async def analyze_code(req: AnalyzeCodeRequest) -> Any:
 
     vulns = [CodeVulnerability(**v) for v in result.pop("vulnerabilities", [])]
     return AnalyzeCodeResponse(vulnerabilities=vulns, **result)
+
+
+@app.post("/static-analyze")
+async def static_analyze(
+    file: Optional[UploadFile] = File(default=None),
+    code: Optional[str] = Form(default=None),
+    language: Optional[str] = Form(default=None),
+    filename: Optional[str] = Form(default=None),
+) -> Any:
+    """
+    Comprehensive static analysis endpoint.
+    Accepts either a file upload (APK / ZIP / source code) or raw code text via form fields.
+    Returns vulnerabilities with severity, CWE, fix guidance.
+    """
+    from services.static_analyzer import analyze_file, analyze_code as _sa_analyze_code
+
+    if file is not None:
+        fn = filename or file.filename or "upload"
+        content = await file.read()
+        if len(content) > 100 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File exceeds 100MB limit")
+        try:
+            result = await asyncio.to_thread(analyze_file, content, fn, language or None)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        return result
+
+    if code is not None:
+        if len(code.encode("utf-8")) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Code exceeds 10MB limit")
+        try:
+            result = await asyncio.to_thread(_sa_analyze_code, code, language or None, filename or None)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        return result
+
+    raise HTTPException(status_code=400, detail="Provide either 'file' (upload) or 'code' (form field)")
 
 
 @app.post("/api/validate", response_model=ValidateResponse)
