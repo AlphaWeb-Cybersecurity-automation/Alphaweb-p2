@@ -689,6 +689,7 @@ TOOL_DEFAULT_ARGS: Dict[str, str] = {
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> Any:
+    """Non-streaming fallback — kept for compatibility. Prefer /chat/stream."""
     target = req.domain.strip()
 
     target_check = validate_target_enhanced(target)
@@ -698,10 +699,8 @@ async def chat(req: ChatRequest) -> Any:
             error=target_check.errors[0],
         )
 
-    # Detect every tool mentioned in the prompt
     tools = _detect_all_tools(req.prompt)
 
-    # Run all tools in parallel
     async def _run_one(tool_name: str):
         args = TOOL_DEFAULT_ARGS.get(tool_name, "")
         try:
@@ -712,7 +711,6 @@ async def chat(req: ChatRequest) -> Any:
 
     results = await asyncio.gather(*[_run_one(t) for t in tools])
 
-    # Build combined raw output with per-tool headers
     combined_raw = ""
     tools_used: List[str] = []
     tool_errors: List[str] = []
@@ -724,16 +722,12 @@ async def chat(req: ChatRequest) -> Any:
         else:
             combined_raw += f"\n=== {tool_name.upper()} ===\n{raw}\n"
 
-    # Ask BarronLLM to interpret combined output
     baron = get_baron(settings)
     llm_analysis = ""
     if baron.is_loaded and combined_raw.strip():
         try:
             llm_analysis = await asyncio.to_thread(
-                baron.interpret_output,
-                ", ".join(tools_used),
-                combined_raw[:4000],
-                target,
+                baron.interpret_output, ", ".join(tools_used), combined_raw[:4000], target,
             )
         except Exception as llm_err:
             logger.warning(f"interpret_output failed: {llm_err}")
@@ -750,6 +744,112 @@ async def chat(req: ChatRequest) -> Any:
         ai_message=llm_analysis,
         tool_used=", ".join(tools_used),
         raw_output=combined_raw.strip(),
+    )
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """
+    SSE streaming endpoint.
+    Events:
+      data: {"type": "tool_line", "tool": "<name>", "line": "<text>"}
+      data: {"type": "tool_done", "tool": "<name>", "exit_code": <int>}
+      data: {"type": "analysis", "content": "<ai text>", "tool_used": "<name,name>"}
+      data: {"type": "error", "message": "<text>"}
+      data: {"type": "done"}
+    """
+    from fastapi.responses import StreamingResponse
+    import asyncio
+
+    target = req.domain.strip()
+    target_check = validate_target_enhanced(target)
+    if not target_check.valid:
+        err_msg = target_check.errors[0]
+        async def _err():
+            yield f'data: {json.dumps({"type": "error", "message": err_msg})}\n\n'
+            yield f'data: {json.dumps({"type": "done"})}\n\n'
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    tools = _detect_all_tools(req.prompt)
+
+    async def _event_generator():
+        combined_raw = ""
+        tools_used: List[str] = []
+        tool_errors: List[str] = []
+
+        for tool_name in tools:
+            args = TOOL_DEFAULT_ARGS.get(tool_name, "")
+            # Announce tool start
+            yield f'data: {json.dumps({"type": "tool_start", "tool": tool_name})}\n\n'
+
+            raw_output = ""
+            exit_code = 0
+            try:
+                # Run tool in a thread; stream its output line-by-line via a queue
+                queue: asyncio.Queue = asyncio.Queue()
+
+                async def _run_and_enqueue(tn=tool_name, a=args, q=queue):
+                    result = await run_tool(tool_name=tn, args=a, target=target, settings=settings)
+                    q.put_nowait(result)
+
+                run_task = asyncio.create_task(_run_and_enqueue())
+
+                # Poll until done, periodically yield a heartbeat so the connection stays open
+                while not run_task.done():
+                    await asyncio.sleep(0.5)
+                    yield f'data: {json.dumps({"type": "heartbeat"})}\n\n'
+
+                result = await queue.get()
+                raw_output = result.raw_output[:settings.TOOL_OUTPUT_MAX_CHARS]
+                exit_code = result.exit_code
+
+                # Stream each output line as an event
+                for line in raw_output.splitlines():
+                    line = line.strip()
+                    if line:
+                        yield f'data: {json.dumps({"type": "tool_line", "tool": tool_name, "line": line})}\n\n'
+
+                tools_used.append(tool_name)
+                combined_raw += f"\n=== {tool_name.upper()} ===\n{raw_output}\n"
+
+            except Exception as exc:
+                err = str(exc)
+                tool_errors.append(f"{tool_name}: {err}")
+                tools_used.append(tool_name)
+                combined_raw += f"\n=== {tool_name.upper()} ERROR ===\n{err}\n"
+                yield f'data: {json.dumps({"type": "tool_line", "tool": tool_name, "line": f"[ERROR] {err}"})}\n\n'
+
+            yield f'data: {json.dumps({"type": "tool_done", "tool": tool_name, "exit_code": exit_code})}\n\n'
+
+        # LLM analysis after all tools finish
+        baron = get_baron(settings)
+        llm_analysis = ""
+        if baron.is_loaded and combined_raw.strip():
+            try:
+                llm_analysis = await asyncio.to_thread(
+                    baron.interpret_output, ", ".join(tools_used), combined_raw[:4000], target,
+                )
+            except Exception as llm_err:
+                logger.warning(f"interpret_output failed: {llm_err}")
+
+        if not llm_analysis:
+            lines = combined_raw.count('\n') + 1
+            llm_analysis = (
+                f"Ran {', '.join(t.upper() for t in tools_used)} against {target}. "
+                f"{lines} lines of output captured."
+                + (f"\nErrors: {'; '.join(tool_errors)}" if tool_errors else "")
+            )
+
+        yield f'data: {json.dumps({"type": "analysis", "content": llm_analysis, "tool_used": ", ".join(tools_used)})}\n\n'
+        yield f'data: {json.dumps({"type": "done"})}\n\n'
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

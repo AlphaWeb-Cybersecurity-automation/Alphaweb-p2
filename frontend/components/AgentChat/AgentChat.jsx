@@ -1,46 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import './AgentChat.css'
 
-const TOOLS = ['nmap','masscan','nikto','sqlmap','ffuf','gobuster','john','hydra','curl','tcpdump']
-
 function ts() {
   return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-function parseToTermLogs(rawOutput, toolsStr, target) {
-  const entries = []
-  const tools = toolsStr.split(', ')
-
-  // Split combined output by === TOOL === headers
-  const sections = rawOutput.split(/\n=== ([A-Z0-9_]+)(?: ERROR)? ===\n/)
-  // sections: [pre, toolName, content, toolName, content, ...]
-  // If no headers (single tool legacy), treat whole output as one block
-  if (sections.length <= 1) {
-    entries.push({ type: 'cmd', icon: '$', msg: `${tools[0] || 'tool'} ${target}`, ts: ts() })
-    for (const line of rawOutput.split('\n').filter(l => l.trim())) {
-      entries.push(...[classifyLine(line)])
-    }
-    return entries
-  }
-
-  for (let i = 1; i < sections.length; i += 2) {
-    const toolHeader = sections[i].toLowerCase()
-    const content    = sections[i + 1] || ''
-    entries.push({ type: 'cmd', icon: '$', msg: `${toolHeader} ${target}`, ts: ts() })
-    for (const line of content.split('\n').filter(l => l.trim())) {
-      entries.push(classifyLine(line))
-    }
-  }
-  return entries
-}
-
 function classifyLine(line) {
   const l = line.trim()
-  if (/\bopen\b/i.test(l))                            return { type: 'success', icon: '✓', msg: l, ts: ts() }
-  if (/warning|warn/i.test(l))                         return { type: 'warning', icon: '!', msg: l, ts: ts() }
-  if (/error|failed|refused/i.test(l))                 return { type: 'error',   icon: '✗', msg: l, ts: ts() }
-  if (/done|complete|finished|scanned/i.test(l))       return { type: 'success', icon: '✓', msg: l, ts: ts() }
-  if (/filtered|closed/i.test(l))                      return { type: 'dim',     icon: '·', msg: l, ts: ts() }
+  if (/\bopen\b/i.test(l))                       return { type: 'success', icon: '✓', msg: l, ts: ts() }
+  if (/warning|warn/i.test(l))                    return { type: 'warning', icon: '!', msg: l, ts: ts() }
+  if (/error|failed|refused/i.test(l))            return { type: 'error',   icon: '✗', msg: l, ts: ts() }
+  if (/done|complete|finished|scanned/i.test(l))  return { type: 'success', icon: '✓', msg: l, ts: ts() }
+  if (/filtered|closed/i.test(l))                 return { type: 'dim',     icon: '·', msg: l, ts: ts() }
   return { type: 'info', icon: '▶', msg: l, ts: ts() }
 }
 
@@ -51,8 +22,9 @@ export default function AgentChat({ onScanOutput }) {
   const [domainError, setDomainError] = useState('')
   const [loading,     setLoading]     = useState(false)
   const [modelStatus, setModelStatus] = useState('Idle')
-  const endRef    = useRef(null)
-  const inputRef  = useRef(null)
+  const endRef   = useRef(null)
+  const inputRef = useRef(null)
+  const abortRef = useRef(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -76,52 +48,100 @@ export default function AgentChat({ onScanOutput }) {
     setMessages(m => [...m, { id: Date.now(), role: 'user', content: text, ts: ts() }])
     setInput('')
     setLoading(true)
-    setModelStatus('Processing...')
+    setModelStatus('Running tools...')
 
-    // Push "starting" entry to terminal
     onScanOutput?.([{ type: 'pending', icon: '⟳', msg: `Dispatching: ${text}`, detail: `→ ${domain.trim()}`, ts: ts() }])
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/chat/stream', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ prompt: text, domain: domain.trim() }),
+        signal:  controller.signal,
       })
 
-      const data = await res.json()
-
-      // Push raw output lines to terminal console
-      if (data.raw_output && data.tool_used) {
-        onScanOutput?.(parseToTermLogs(data.raw_output, data.tool_used, domain.trim()))
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
       }
 
-      let content
-      if (data.error) {
-        content = `[ERROR] ${data.error}`
-        if (data.ai_message) content += `\n\n${data.ai_message}`
-        onScanOutput?.([{ type: 'error', icon: '✗', msg: data.error, ts: ts() }])
-      } else {
-        content = data.ai_message || 'Scan complete.'
-      }
+      const reader  = res.body.getReader()
+      const decoder = new TextDecoder()
+      let   buffer  = ''
+      let   toolsUsed = ''
 
-      setMessages(m => [...m, {
-        id:    Date.now() + 1,
-        role:  'ai',
-        content,
-        tool:  data.tool_used,
-        ts:    ts(),
-      }])
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() // keep incomplete last chunk
+
+        for (const raw of lines) {
+          if (!raw.startsWith('data: ')) continue
+          const payload = raw.slice(6).trim()
+          if (!payload) continue
+
+          let evt
+          try { evt = JSON.parse(payload) } catch { continue }
+
+          if (evt.type === 'heartbeat') continue
+
+          if (evt.type === 'tool_start') {
+            setModelStatus(`Running ${evt.tool}...`)
+            onScanOutput?.([{ type: 'cmd', icon: '$', msg: `${evt.tool} ${domain.trim()}`, ts: ts() }])
+          }
+
+          if (evt.type === 'tool_line') {
+            onScanOutput?.([classifyLine(evt.line)])
+          }
+
+          if (evt.type === 'tool_done') {
+            const status = evt.exit_code === 0 ? 'success' : 'warning'
+            onScanOutput?.([{
+              type: status, icon: evt.exit_code === 0 ? '✓' : '!',
+              msg: `${evt.tool} finished (exit ${evt.exit_code})`, ts: ts(),
+            }])
+          }
+
+          if (evt.type === 'error') {
+            onScanOutput?.([{ type: 'error', icon: '✗', msg: evt.message, ts: ts() }])
+            setMessages(m => [...m, {
+              id: Date.now() + 1, role: 'ai',
+              content: `[ERROR] ${evt.message}`, ts: ts(),
+            }])
+          }
+
+          if (evt.type === 'analysis') {
+            toolsUsed = evt.tool_used || ''
+            setModelStatus('Analyzing...')
+            setMessages(m => [...m, {
+              id:      Date.now() + 1,
+              role:    'ai',
+              content: evt.content,
+              tool:    toolsUsed,
+              ts:      ts(),
+            }])
+          }
+
+          if (evt.type === 'done') break
+        }
+      }
     } catch (e) {
-      onScanOutput?.([{ type: 'error', icon: '✗', msg: `Connection error: ${e.message}`, ts: ts() }])
-      setMessages(m => [...m, {
-        id:      Date.now() + 1,
-        role:    'ai',
-        content: `Connection error: ${e.message}`,
-        ts:      ts(),
-      }])
+      if (e.name !== 'AbortError') {
+        onScanOutput?.([{ type: 'error', icon: '✗', msg: `Connection error: ${e.message}`, ts: ts() }])
+        setMessages(m => [...m, {
+          id: Date.now() + 1, role: 'ai',
+          content: `Connection error: ${e.message}`, ts: ts(),
+        }])
+      }
     } finally {
       setLoading(false)
       setModelStatus('Idle')
+      abortRef.current = null
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }

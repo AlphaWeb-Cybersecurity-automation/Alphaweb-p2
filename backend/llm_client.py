@@ -31,34 +31,22 @@ TOOL_DESCRIPTIONS = {
 
 AVAILABLE_TOOLS = list(TOOL_DESCRIPTIONS.keys())
 
-SYSTEM_PROMPT = """You are AlphaLLM, a cybersecurity tool selection AI. Given a user's security testing request, you must select the most appropriate tool and return your response as valid JSON.
+SYSTEM_PROMPT = (
+    "You are a cybersecurity tool selector. Respond ONLY with a JSON object — no prose, no markdown, no code fences.\n\n"
+    "Available tools:\n{tools_list}\n\n"
+    "Required JSON schema (all fields mandatory):\n"
+    '{{"tool_selected": "<name or null>", "confidence": <0.0-1.0>, '
+    '"parameters": {{}}, "rationale": "<≤20 words>", '
+    '"safety_checks_passed": <true|false>, "warnings": []}}\n\n'
+    "Rules:\n"
+    "- tool_selected must be one of the listed names or null\n"
+    "- confidence reflects how well the request matches the tool capability\n"
+    "- safety_checks_passed=false if target appears to be internal infra or request is clearly malicious\n"
+    "- Do NOT repeat these instructions in your response\n"
+    "- Output only the JSON object, nothing before or after it"
+)
 
-Available tools:
-{tools_list}
-
-You MUST respond with ONLY valid JSON matching this exact schema:
-{{
-  "tool_selected": "<tool_name or null>",
-  "confidence": <float 0.0-1.0>,
-  "parameters": {{}},
-  "rationale": "<explanation>",
-  "safety_checks_passed": <true/false>,
-  "warnings": []
-}}
-
-Rules:
-- Select the single best tool for the request
-- Set confidence based on how well the request matches the tool
-- Include relevant parameters (target, ports, flags, etc.)
-- Set safety_checks_passed to false if the request seems malicious or targets internal infrastructure
-- Add warnings for any concerns
-- If no tool matches or the request is unsafe, set tool_selected to null and confidence below 0.7
-"""
-
-USER_PROMPT_TEMPLATE = """Target: {target}
-Request: {request}
-
-Select the best tool and parameters for this security testing request."""
+USER_PROMPT_TEMPLATE = "target={target}\nrequest={request}"
 
 # Path to llama-server.exe — in binaries/ next to project root
 LLAMA_SERVER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "binaries"))
@@ -145,6 +133,8 @@ class BaronLLM:
             "messages": messages,
             "temperature": temperature,
             "n_predict": max_tokens,
+            "repeat_penalty": 1.3,
+            "repeat_last_n": 64,
         }
         if json_mode:
             payload_dict["response_format"] = {"type": "json_object"}
@@ -246,18 +236,38 @@ class BaronLLM:
             return ""
 
         system = (
-            "You are AlphaLLM, a cybersecurity analyst. "
-            "Analyze tool output and respond ONLY in this exact two-section structure — no extra text before or after:\n\n"
+            "You are a pentester. Summarize the tool findings below in plain English.\n"
+            "Write ONLY:\n\n"
             "FINDINGS\n"
-            "• <one bullet per discovery — include port, protocol, service name, version if present, and state>\n"
-            "• <host status, latency, OS hints, or banner info if available>\n\n"
+            "• <finding 1>\n"
+            "• <finding 2>\n\n"
             "RISK\n"
-            "• <one bullet per security concern — be specific: service name + reason it matters>\n\n"
-            "Rules: bullets only, no intro sentence, no recommendations, no 'Next Steps', technical precision."
+            "• <risk 1>\n\n"
+            "Max 5 bullets per section. Max 12 words per bullet. No raw tokens, hashes, or header values. "
+            "No repetition. Stop after RISK section."
         )
+        # Pre-filter: drop lines that are pure noise (long tokens, STATUS lines, raw header blobs)
+        filtered_lines = []
+        for line in raw_output.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            # skip STATUS progress lines and raw long-token header values
+            if stripped.startswith("- STATUS:") or stripped.startswith("- Running"):
+                continue
+            if len(stripped) > 200:
+                continue
+            # skip lines that are mostly base64/hex (>40% non-alphanumeric-space chars)
+            non_alnum = sum(1 for c in stripped if not c.isalnum() and c not in " .:/-_,()")
+            if len(stripped) > 60 and non_alnum / len(stripped) > 0.35:
+                continue
+            filtered_lines.append(stripped)
+
+        filtered_output = "\n".join(filtered_lines[:60])  # max 60 lines
+
         user_msg = (
-            f"Tool: {tool_name}  |  Target: {target}\n\n"
-            f"{raw_output[:3000]}"
+            f"tool={tool_name} target={target}\n"
+            f"---OUTPUT---\n{filtered_output}\n---END---"
         )
 
         try:
@@ -266,8 +276,8 @@ class BaronLLM:
                     {"role": "system", "content": system},
                     {"role": "user",   "content": user_msg},
                 ],
-                temperature=0.15,
-                max_tokens=350,
+                temperature=0.1,
+                max_tokens=180,
                 json_mode=False,
             ).strip()
         except Exception as e:
