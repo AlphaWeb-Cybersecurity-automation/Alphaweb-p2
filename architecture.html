@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlphaWeb — System Architecture</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #f4f7fb;
+    --surface: #ffffff;
+    --border:  #dde4ef;
+    --text:    #1a2332;
+    --dim:     #6b7a99;
+
+    --client:  #059669;
+    --api:     #0369a1;
+    --service: #7c3aed;
+    --ai:      #c2410c;
+    --exec:    #b91c1c;
+    --data:    #b45309;
+    --tools:   #15803d;
+
+    --bg-client:  #ecfdf5;
+    --bg-api:     #eff6ff;
+    --bg-service: #f5f3ff;
+    --bg-infra:   #fafafa;
+    --bg-tools:   #f0fdf4;
+
+    --bd-client:  #a7f3d0;
+    --bd-api:     #bfdbfe;
+    --bd-service: #ddd6fe;
+    --bd-ai:      #fed7aa;
+    --bd-exec:    #fecaca;
+    --bd-data:    #fde68a;
+    --bd-tools:   #bbf7d0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 20px 28px;
+  }
+
+  /* ── Header ── */
+  .hdr {
+    text-align: center;
+    padding: 18px 20px 16px;
+    border: 2px solid var(--bd-api);
+    border-radius: 10px;
+    background: var(--surface);
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(3,105,161,0.08);
+  }
+  .hdr::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--client), var(--api), var(--service), var(--exec), var(--tools));
+  }
+  .hdr-eye { font-size: 9px; letter-spacing: 4px; color: var(--api); text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+  .hdr h1  { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: 1px; margin-bottom: 4px; }
+  .hdr-sub { font-size: 12px; color: var(--dim); letter-spacing: 0.5px; }
+  .badges  { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 12px; }
+  .badge   { padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
+
+  /* ── Diagram ── */
+  .diagram { display: flex; flex-direction: column; }
+  .lw { position: relative; }
+  .ll {
+    font-size: 10px; font-weight: 800; letter-spacing: 3px;
+    text-transform: uppercase; margin-bottom: 6px; padding-left: 2px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ll::before { content: ''; display: inline-block; width: 3px; height: 14px; border-radius: 2px; background: currentColor; }
+
+  .layer {
+    padding: 10px; border-radius: 8px;
+    border: 1.5px solid; background: var(--surface);
+  }
+  .l-client  { border-color: var(--bd-client);  background: var(--bg-client);  }
+  .l-api     { border-color: var(--bd-api);     background: var(--bg-api);     }
+  .l-service { border-color: var(--bd-service); background: var(--bg-service); }
+  .l-ai      { border-color: var(--bd-ai);      background: #fff7ed; }
+  .l-exec    { border-color: var(--bd-exec);    background: #fff1f2; }
+  .l-data    { border-color: var(--bd-data);    background: #fffbeb; }
+  .l-tools   { border-color: var(--bd-tools);   background: var(--bg-tools);   }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 13px;
+    transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
+    cursor: default; position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 100%; height: 3px; opacity: 0; transition: opacity 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+  .card:hover::before { opacity: 1; }
+
+  .l-client  .card::before { background: var(--client);  }
+  .l-api     .card::before { background: var(--api);     }
+  .l-service .card::before { background: var(--service); }
+  .l-ai      .card::before { background: var(--ai);      }
+  .l-exec    .card::before { background: var(--exec);    }
+  .l-data    .card::before { background: var(--data);    }
+  .l-tools   .card::before { background: var(--tools);   }
+
+  .l-client  .ct { color: var(--client);  }
+  .l-api     .ct { color: var(--api);     }
+  .l-service .ct { color: var(--service); }
+  .l-ai      .ct { color: var(--ai);      }
+  .l-exec    .ct { color: var(--exec);    }
+  .l-data    .ct { color: var(--data);    }
+  .l-tools   .ct { color: var(--tools);   }
+
+  .ct {
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.3px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* grids */
+  .g  { display: grid; gap: 8px; }
+  .g2 { grid-template-columns: repeat(2,1fr); }
+  .g3 { grid-template-columns: repeat(3,1fr); }
+  .g4 { grid-template-columns: repeat(4,1fr); }
+  .g6 { grid-template-columns: repeat(6,1fr); }
+  .mb { margin-bottom: 8px; }
+
+  /* port badge */
+  .pb {
+    padding: 1px 7px; border-radius: 9px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+    background: rgba(0,0,0,0.06); border: 1px solid currentColor; margin-left: 2px;
+  }
+
+  /* status dot */
+  .sd { width:7px; height:7px; border-radius:50%; display:inline-block; margin-left:5px; animation:blink 2s ease-in-out infinite; }
+  .sd-g { background:#10b981; }
+  .sd-b { background:#3b82f6; }
+  .sd-y { background:#f59e0b; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  /* ── Connector ── */
+  .conn { display:flex; flex-direction:column; align-items:center; padding:4px 0; }
+  .conn-lbl {
+    font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase;
+    padding: 2px 10px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 20px; margin-bottom: 3px;
+    font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .conn-line { width: 2px; height: 18px; position: relative; }
+  .conn-arr  { width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; }
+  .pulse {
+    position:absolute; left:50%; top:0; transform:translateX(-50%);
+    width:6px; height:6px; border-radius:50%; animation:pflow 1.8s ease-in infinite;
+  }
+  @keyframes pflow { 0%{top:0;opacity:1;} 100%{top:18px;opacity:0;} }
+
+  /* ── Infra 3-col ── */
+  .infra-grid {
+    display:grid; grid-template-columns:repeat(3,1fr);
+    gap:10px; padding:10px;
+    border:1.5px solid var(--border); border-radius:8px; background:var(--bg-infra);
+  }
+  .infra-col-lbl { font-size:9px; font-weight:800; letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
+
+  /* ── Tools ── */
+  .tool-chips { display:flex; flex-wrap:wrap; gap:5px; padding:3px 2px; }
+  .tc {
+    display:inline-flex; align-items:center;
+    padding:5px 12px; border-radius:20px;
+    font-size:12px; font-weight:700; letter-spacing:0.3px;
+    background:var(--surface); border:1.5px solid;
+    transition:transform 0.15s, box-shadow 0.15s; cursor:default;
+  }
+  .tc:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.12); }
+  .tc-sub { color:var(--dim); font-weight:400; margin-left:5px; font-size:9px; }
+
+  /* ── Flow ── */
+  .flow-section {
+    margin-top:18px; padding:14px 18px;
+    border:1.5px solid var(--bd-service);
+    border-radius:8px; background:var(--bg-service);
+    box-shadow:0 1px 8px rgba(124,58,237,0.06);
+  }
+  .flow-title { font-size:9px; font-weight:800; letter-spacing:3px; text-transform:uppercase; color:var(--service); margin-bottom:12px; }
+  .flow-steps { display:flex; flex-wrap:wrap; align-items:center; }
+  .fs { display:flex; flex-direction:column; align-items:center; min-width:80px; }
+  .fs-n {
+    width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:800; margin-bottom:4px;
+    border:2px solid currentColor; flex-shrink:0;
+  }
+  .fs-lbl { font-size:11px; font-weight:700; text-align:center; color:var(--text); }
+  .fs-arrow { font-size:18px; color:var(--dim); padding:0 2px; margin-bottom:22px; flex-shrink:0; }
+
+  /* ── Legend ── */
+  .legend {
+    display:flex; flex-wrap:wrap; gap:12px; align-items:center;
+    margin-top:16px; padding:10px 16px;
+    border:1.5px solid var(--border); border-radius:8px;
+    background:var(--surface); box-shadow:0 1px 4px rgba(0,0,0,0.05);
+  }
+  .legend-ttl { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; font-weight:700; }
+  .li  { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--dim); font-weight:600; }
+  .ld  { width:10px; height:10px; border-radius:3px; }
+
+  .footer { text-align:center; padding:14px 0 0; font-size:9px; color:var(--dim); letter-spacing:1.5px; text-transform:uppercase; font-weight:600; }
+
+  @media(max-width:1100px){ .g6{grid-template-columns:repeat(3,1fr);} .g4{grid-template-columns:repeat(2,1fr);} }
+  @media(max-width:780px) { .g6,.g4,.g3{grid-template-columns:repeat(2,1fr);} .infra-grid{grid-template-columns:1fr;} .flow-steps{flex-direction:column;align-items:flex-start;} .fs-arrow{transform:rotate(90deg);align-self:center;margin-bottom:0;margin-top:4px;} }
+  @media(max-width:480px) { .g6,.g4,.g3,.g2{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-eye">◈ &nbsp;Internal Architecture Documentation &nbsp;—&nbsp; Confidential</div>
+    <h1>AlphaWeb System Architecture</h1>
+    <div class="hdr-sub">AI-Powered Cybersecurity Automation Platform &nbsp;·&nbsp; v2.0</div>
+    <div class="badges">
+      <span class="badge" style="background:#ecfdf5;color:var(--client);border:1.5px solid var(--bd-client)">React 18.2</span>
+      <span class="badge" style="background:#eff6ff;color:var(--api);border:1.5px solid var(--bd-api)">FastAPI</span>
+      <span class="badge" style="background:#f5f3ff;color:var(--service);border:1.5px solid var(--bd-service)">Python 3.9+</span>
+      <span class="badge" style="background:#fff7ed;color:var(--ai);border:1.5px solid var(--bd-ai)">BaronLLM (Local)</span>
+      <span class="badge" style="background:#fff1f2;color:var(--exec);border:1.5px solid var(--bd-exec)">Docker</span>
+      <span class="badge" style="background:#fffbeb;color:var(--data);border:1.5px solid var(--bd-data)">SQLite / PostgreSQL</span>
+      <span class="badge" style="background:#f0fdf4;color:var(--tools);border:1.5px solid var(--bd-tools)">13 Security Tools</span>
+      <span class="badge" style="background:#f8fafc;color:var(--dim);border:1.5px solid var(--border)">SSE Streaming</span>
+      <span class="badge" style="background:#f8fafc;color:var(--dim);border:1.5px solid var(--border)">DAG Orchestration</span>
+    </div>
+  </div>
+
+  <div class="diagram">
+
+    <!-- LAYER 1 -->
+    <div class="lw">
+      <div class="ll" style="color:var(--client)">Layer 1 — Presentation / Client (Vite :5173)</div>
+      <div class="layer l-client">
+        <div class="g g6">
+          <div class="card"><div class="ct">◉ ActivityBar</div></div>
+          <div class="card"><div class="ct">◉ SideBar</div></div>
+          <div class="card"><div class="ct">◉ Editor</div></div>
+          <div class="card"><div class="ct">◉ AgentChat</div></div>
+          <div class="card"><div class="ct">◉ Terminal</div></div>
+          <div class="card"><div class="ct">◉ StatusBar</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- conn 1→2 -->
+    <div class="conn">
+      <div class="conn-lbl">HTTP REST + Server-Sent Events (SSE) &nbsp;·&nbsp; /api proxy → :8000</div>
+      <div class="conn-line" style="background:linear-gradient(to bottom,var(--client),var(--api))">
+        <div class="pulse" style="background:var(--api)"></div>
+      </div>
+      <div class="conn-arr" style="border-top:6px solid var(--api)"></div>
+    </div>
+
+    <!-- LAYER 2 -->
+    <div class="lw">
+      <div class="ll" style="color:var(--api)">Layer 2 — API Gateway (FastAPI ASGI)</div>
+      <div class="layer l-api">
+        <div class="g g2 mb">
+          <div class="card">
+            <div class="ct">⬡ FastAPI Server <span class="pb" style="color:var(--api)">:8000</span><span class="sd sd-g"></span></div>
+          </div>
+          <div class="card">
+            <div class="ct">⬡ Security Middleware &amp; Rate Limiter</div>
+          </div>
+        </div>
+        <div class="g g4">
+          <div class="card"><div class="ct" style="font-size:11px">POST /api/scan</div></div>
+          <div class="card"><div class="ct" style="font-size:11px">POST /analyze-code</div></div>
+          <div class="card"><div class="ct" style="font-size:11px">POST /chat/stream</div></div>
+          <div class="card"><div class="ct" style="font-size:11px">GET /api/scan/{id}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- conn 2→3 -->
+    <div class="conn">
+      <div class="conn-lbl">async dispatch · background workers · SQLAlchemy ORM</div>
+      <div class="conn-line" style="background:linear-gradient(to bottom,var(--api),var(--service))">
+        <div class="pulse" style="background:var(--service)"></div>
+      </div>
+      <div class="conn-arr" style="border-top:6px solid var(--service)"></div>
+    </div>
+
+    <!-- LAYER 3 -->
+    <div class="lw">
+      <div class="ll" style="color:var(--service)">Layer 3 — Service Orchestration</div>
+      <div class="layer l-service">
+        <div class="g g3">
+          <div class="card"><div class="ct">◈ Shannon Orchestrator</div></div>
+          <div class="card"><div class="ct">◈ Tool Decision Engine</div></div>
+          <div class="card"><div class="ct">◈ Execution Graph (DAG)</div></div>
+          <div class="card"><div class="ct">◈ Workflow Engine</div></div>
+          <div class="card"><div class="ct">◈ Code Analyzer (SAST)</div></div>
+          <div class="card"><div class="ct">◈ Anomaly Detector</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- conn 3→infra -->
+    <div class="conn">
+      <div class="conn-lbl">parallel infrastructure calls</div>
+      <div class="conn-line" style="background:linear-gradient(to bottom,var(--service),var(--dim))"></div>
+    </div>
+
+    <!-- LAYER 4 -->
+    <div class="lw">
+      <div class="ll" style="color:var(--dim)">Layer 4 — Infrastructure</div>
+      <div class="infra-grid">
+        <div>
+          <div class="infra-col-lbl" style="color:var(--ai)">AI Engine</div>
+          <div class="layer l-ai">
+            <div class="card">
+              <div class="ct">◎ BaronLLM <span class="pb" style="color:var(--ai)">:8081</span><span class="sd sd-b"></span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="infra-col-lbl" style="color:var(--exec)">Execution Engine</div>
+          <div class="layer l-exec">
+            <div class="card">
+              <div class="ct">◎ Tool Runner (Docker) <span class="sd sd-g"></span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="infra-col-lbl" style="color:var(--data)">Persistence Layer</div>
+          <div class="layer l-data">
+            <div class="card">
+              <div class="ct">◎ SQLite Database <span class="sd sd-y"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- conn 4→5 -->
+    <div class="conn">
+      <div class="conn-lbl">docker run · isolated containers · per-tool resource limits</div>
+      <div class="conn-line" style="background:linear-gradient(to bottom,var(--exec),var(--tools))">
+        <div class="pulse" style="background:var(--tools)"></div>
+      </div>
+      <div class="conn-arr" style="border-top:6px solid var(--tools)"></div>
+    </div>
+
+    <!-- LAYER 5 -->
+    <div class="lw">
+      <div class="ll" style="color:var(--tools)">Layer 5 — Security Tools (Docker-Isolated Containers)</div>
+      <div class="layer l-tools">
+        <div class="tool-chips">
+          <div class="tc" style="border-color:var(--bd-tools);color:var(--tools)">⬡ nmap<span class="tc-sub">port scan</span></div>
+          <div class="tc" style="border-color:var(--bd-tools);color:var(--tools)">⬡ masscan<span class="tc-sub">mass scan</span></div>
+          <div class="tc" style="border-color:var(--bd-tools);color:var(--tools)">⬡ nikto<span class="tc-sub">web vuln</span></div>
+          <div class="tc" style="border-color:var(--bd-exec);color:var(--exec)">⬡ sqlmap<span class="tc-sub">sql inject</span></div>
+          <div class="tc" style="border-color:var(--bd-tools);color:var(--tools)">⬡ ffuf<span class="tc-sub">web fuzz</span></div>
+          <div class="tc" style="border-color:var(--bd-tools);color:var(--tools)">⬡ gobuster<span class="tc-sub">dir brute</span></div>
+          <div class="tc" style="border-color:var(--bd-exec);color:var(--exec)">⬡ hydra<span class="tc-sub">cred brute</span></div>
+          <div class="tc" style="border-color:var(--bd-exec);color:var(--exec)">⬡ john<span class="tc-sub">hash crack</span></div>
+          <div class="tc" style="border-color:var(--bd-exec);color:var(--exec)">⬡ hashcat<span class="tc-sub">gpu crack</span></div>
+          <div class="tc" style="border-color:var(--bd-ai);color:var(--ai)">⬡ gitleaks<span class="tc-sub">secret scan</span></div>
+          <div class="tc" style="border-color:var(--bd-tools);color:var(--tools)">⬡ nuclei<span class="tc-sub">template vuln</span></div>
+          <div class="tc" style="border-color:var(--bd-api);color:var(--api)">⬡ tcpdump<span class="tc-sub">pkt capture</span></div>
+          <div class="tc" style="border-color:var(--bd-api);color:var(--api)">⬡ curl<span class="tc-sub">http req</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end diagram -->
+
+  <!-- Request Lifecycle -->
+  <div class="flow-section">
+    <div class="flow-title">▶ Request Lifecycle — End-to-End Data Flow</div>
+    <div class="flow-steps">
+      <div class="fs"><div class="fs-n" style="color:var(--client);border-color:var(--client)">1</div><div class="fs-lbl">User Input</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--api);border-color:var(--api)">2</div><div class="fs-lbl">Validate</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--ai);border-color:var(--ai)">3</div><div class="fs-lbl">BaronLLM</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--data);border-color:var(--data)">4</div><div class="fs-lbl">ScanJob DB</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--service);border-color:var(--service)">5</div><div class="fs-lbl">Orchestrate</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--exec);border-color:var(--exec)">6</div><div class="fs-lbl">Docker Run</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--ai);border-color:var(--ai)">7</div><div class="fs-lbl">Next Tool?</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--service);border-color:var(--service)">8</div><div class="fs-lbl">Anomaly Scan</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--data);border-color:var(--data)">9</div><div class="fs-lbl">Persist</div></div>
+      <div class="fs-arrow">→</div>
+      <div class="fs"><div class="fs-n" style="color:var(--client);border-color:var(--client)">10</div><div class="fs-lbl">SSE Stream</div></div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span class="legend-ttl">Legend:</span>
+    <div class="li"><div class="ld" style="background:var(--client)"></div>Presentation</div>
+    <div class="li"><div class="ld" style="background:var(--api)"></div>API Gateway</div>
+    <div class="li"><div class="ld" style="background:var(--service)"></div>Service Layer</div>
+    <div class="li"><div class="ld" style="background:var(--ai)"></div>AI Engine</div>
+    <div class="li"><div class="ld" style="background:var(--exec)"></div>Execution</div>
+    <div class="li"><div class="ld" style="background:var(--data)"></div>Persistence</div>
+    <div class="li"><div class="ld" style="background:var(--tools)"></div>Security Tools</div>
+    <div class="li" style="margin-left:6px"><span class="sd sd-g" style="margin:0 5px 0 0"></span>Active</div>
+    <div class="li"><span class="sd sd-b" style="margin:0 5px 0 0"></span>Running</div>
+    <div class="li"><span class="sd sd-y" style="margin:0 5px 0 0"></span>Idle</div>
+  </div>
+
+  <div class="footer">AlphaWeb v2.0 · System Architecture · 2026-04-19 · Internal Use Only</div>
+
+</div>
+</body>
+</html>

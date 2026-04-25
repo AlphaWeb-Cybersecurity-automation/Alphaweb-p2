@@ -190,6 +190,18 @@ def _tool_timeout_seconds(tool_name: str, settings: Settings) -> int:
         "nuclei": 600,
         "hashcat": 3600,
         "gitleaks": 300,
+        "theharvester": 300,
+        "sublist3r": 300,
+        "testssl": 300,
+        "wapiti": 900,
+        "wpscan": 600,
+        "cewl": 300,
+        "trivy": 300,
+        "amass": 600,
+        "commix": 900,
+        "searchsploit": 60,
+        "subdominator": 300,
+        "httpx": 120,
     }
 
     if settings.TOOL_EXECUTION_TIMEOUT_SECS:

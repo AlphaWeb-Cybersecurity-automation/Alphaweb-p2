@@ -5,7 +5,7 @@
 AlphaWeb is a web-based security automation platform combining:
 - **AI-driven threat analysis** via BaronLLM (local LLM inference)
 - **Code vulnerability detection** using Bandit (Python), ESLint (JavaScript), and pattern-based rules
-- **Container-orchestrated security tools** (nmap, sqlmap, nikto, ffuf, gobuster, john, hydra, curl, tcpdump)
+- **Container-orchestrated security tools** — 25 tools across recon, exploitation, fuzzing, password cracking, and vulnerability scanning
 - **Interactive UI** with real-time code analysis, file upload, and terminal output streaming
 
 ---

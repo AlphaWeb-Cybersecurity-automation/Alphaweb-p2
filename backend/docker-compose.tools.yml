@@ -51,3 +51,51 @@ services:
     build: { context: ./tools/gitleaks }
     image: gitleaks:latest
 
+  theharvester:
+    build: { context: ./tools/theharvester }
+    image: theharvester:latest
+
+  sublist3r:
+    build: { context: ./tools/sublist3r }
+    image: sublist3r:latest
+
+  testssl:
+    build: { context: ./tools/testssl }
+    image: testssl:latest
+
+  wapiti:
+    build: { context: ./tools/wapiti }
+    image: wapiti:latest
+
+  wpscan:
+    build: { context: ./tools/wpscan }
+    image: wpscan:latest
+
+  cewl:
+    build: { context: ./tools/cewl }
+    image: cewl:latest
+
+  trivy:
+    build: { context: ./tools/trivy }
+    image: trivy:latest
+
+  amass:
+    build: { context: ./tools/amass }
+    image: amass:latest
+
+  commix:
+    build: { context: ./tools/commix }
+    image: commix:latest
+
+  searchsploit:
+    build: { context: ./tools/searchsploit }
+    image: searchsploit:latest
+
+  subdominator:
+    build: { context: ./tools/subdominator }
+    image: subdominator:latest
+
+  httpx:
+    build: { context: ./tools/httpx }
+    image: httpx:latest
+

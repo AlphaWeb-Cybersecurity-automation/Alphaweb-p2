@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -27,17 +28,33 @@ TOOL_DESCRIPTIONS = {
     "nuclei": "template-based vulnerability scanning and CVE detection",
     "hashcat": "advanced GPU-accelerated password hash cracking",
     "gitleaks": "git repository secret scanning and credential leak detection",
+    "theharvester": "OSINT email, subdomain, host, and employee harvesting from public sources",
+    "sublist3r": "passive subdomain enumeration using search engines and DNS",
+    "testssl": "TLS/SSL configuration testing, cipher suite auditing, and certificate checks",
+    "wapiti": "web application vulnerability scanner (SQLi, XSS, SSRF, LFI, etc.)",
+    "wpscan": "WordPress vulnerability scanner — plugins, themes, users, CVEs",
+    "cewl": "custom wordlist generator by spidering a target website",
+    "trivy": "container image and filesystem vulnerability and misconfiguration scanner",
+    "amass": "in-depth DNS enumeration, asset discovery, and attack surface mapping",
+    "commix": "automated command injection detection and exploitation",
+    "searchsploit": "offline exploit database search for CVEs and known vulnerabilities",
+    "subdominator": "fast passive subdomain takeover detection",
+    "httpx": "fast HTTP probing, status codes, tech detection, and web fingerprinting",
 }
 
 AVAILABLE_TOOLS = list(TOOL_DESCRIPTIONS.keys())
 
-SYSTEM_PROMPT = (
+# Pre-built at module load — avoids rebuilding on every analyze() call
+_TOOLS_LIST_STR: str = "\n".join(f"- {k}: {v}" for k, v in TOOL_DESCRIPTIONS.items())
+
+# Use string.Template to avoid .format() conflicts with JSON braces in schema
+_SYSTEM_PROMPT_TEMPLATE = (
     "You are a cybersecurity tool selector. Respond ONLY with a JSON object — no prose, no markdown, no code fences.\n\n"
-    "Available tools:\n{tools_list}\n\n"
+    "Available tools:\n$tools_list\n\n"
     "Required JSON schema (all fields mandatory):\n"
-    '{{"tool_selected": "<name or null>", "confidence": <0.0-1.0>, '
-    '"parameters": {{}}, "rationale": "<≤20 words>", '
-    '"safety_checks_passed": <true|false>, "warnings": []}}\n\n'
+    '{"tool_selected": "<name or null>", "confidence": <0.0-1.0>, '
+    '"parameters": {}, "rationale": "<≤20 words>", '
+    '"safety_checks_passed": <true|false>, "warnings": []}\n\n'
     "Rules:\n"
     "- tool_selected must be one of the listed names or null\n"
     "- confidence reflects how well the request matches the tool capability\n"
@@ -46,12 +63,25 @@ SYSTEM_PROMPT = (
     "- Output only the JSON object, nothing before or after it"
 )
 
+from string import Template as _Template
+SYSTEM_PROMPT = _Template(_SYSTEM_PROMPT_TEMPLATE).substitute(tools_list=_TOOLS_LIST_STR)
+
 USER_PROMPT_TEMPLATE = "target={target}\nrequest={request}"
 
 # Path to llama-server.exe — in binaries/ next to project root
 LLAMA_SERVER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "binaries"))
 LLAMA_SERVER_EXE = os.path.join(LLAMA_SERVER_DIR, "llama-server.exe")
 LLAMA_SERVER_URL = "http://127.0.0.1:8081"
+
+_CODE_TRUNCATE_LIMIT = 4000
+
+# Max lines / tokens for interpret_output — raised to preserve more findings
+_INTERPRET_MAX_LINES = 120
+_INTERPRET_MAX_TOKENS = 300
+
+
+class LLMError(Exception):
+    """Typed error from BaronLLM HTTP calls."""
 
 
 class BaronLLM:
@@ -72,13 +102,11 @@ class BaronLLM:
             logger.error(f"llama-server.exe not found: {LLAMA_SERVER_EXE}")
             return False
 
-        # Check if server is already running
         if self._is_server_healthy():
             logger.info("AlphaLLM server already running")
             self._loaded = True
             return True
 
-        # Start llama-server.exe
         try:
             cmd = [
                 LLAMA_SERVER_EXE,
@@ -97,18 +125,22 @@ class BaronLLM:
                 cwd=LLAMA_SERVER_DIR,
             )
 
-            # Wait for server to become healthy
-            for i in range(60):  # up to 60 seconds
-                time.sleep(1)
+            # Exponential backoff: 1s, 2s, 4s, 8s... capped at 16s, total ~60s budget
+            delay = 1.0
+            elapsed = 0.0
+            budget = 60.0
+            while elapsed < budget:
+                time.sleep(delay)
+                elapsed += delay
                 if self._is_server_healthy():
                     self._loaded = True
-                    logger.info("AlphaLLM server started and healthy")
+                    logger.info(f"AlphaLLM server started and healthy (waited {elapsed:.0f}s)")
                     return True
-                # Check if process died
                 if self._server_proc.poll() is not None:
                     stderr = self._server_proc.stderr.read().decode(errors="replace")
                     logger.error(f"AlphaLLM server exited: {stderr[:500]}")
                     return False
+                delay = min(delay * 2, 16.0)
 
             logger.error("AlphaLLM server did not become healthy within 60s")
             return False
@@ -128,7 +160,7 @@ class BaronLLM:
             return False
 
     def _chat(self, messages: List[Dict], temperature: float = 0.1, max_tokens: int = 512, json_mode: bool = True) -> str:
-        """Send chat completion request to llama-server."""
+        """Send chat completion request to llama-server. Raises LLMError on failure."""
         payload_dict: Dict[str, Any] = {
             "messages": messages,
             "temperature": temperature,
@@ -146,26 +178,29 @@ class BaronLLM:
             headers={"Content-Type": "application/json"},
         )
 
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read())
-            return data["choices"][0]["message"]["content"]
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read())
+                return data["choices"][0]["message"]["content"]
+        except urllib.error.URLError as e:
+            raise LLMError(f"HTTP request to llama-server failed: {e}") from e
+        except (KeyError, json.JSONDecodeError) as e:
+            raise LLMError(f"Unexpected llama-server response format: {e}") from e
 
     @property
     def is_loaded(self) -> bool:
         return self._loaded
 
-    def _build_tools_list(self) -> str:
-        lines = []
-        for name, desc in TOOL_DESCRIPTIONS.items():
-            lines.append(f"- {name}: {desc}")
-        return "\n".join(lines)
-
-    def _parse_response(self, raw_text: str) -> Dict[str, Any]:
-        text = raw_text.strip()
+    def _extract_json(self, text: str) -> str:
+        """Extract outermost JSON object from text."""
         start = text.find("{")
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
-            text = text[start:end]
+            return text[start:end]
+        return text
+
+    def _parse_response(self, raw_text: str) -> Dict[str, Any]:
+        text = self._extract_json(raw_text.strip())
 
         try:
             parsed = json.loads(text)
@@ -203,14 +238,12 @@ class BaronLLM:
         if not self._loaded:
             return self._error_response("AlphaLLM model is not loaded")
 
-        tools_list = self._build_tools_list()
-        system = SYSTEM_PROMPT.format(tools_list=tools_list)
         user_msg = USER_PROMPT_TEMPLATE.format(target=target, request=user_request)
 
         try:
             raw_text = self._chat(
                 messages=[
-                    {"role": "system", "content": system},
+                    {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_msg},
                 ],
                 temperature=self._settings.BARONLLM_TEMPERATURE,
@@ -246,24 +279,21 @@ class BaronLLM:
             "Max 5 bullets per section. Max 12 words per bullet. No raw tokens, hashes, or header values. "
             "No repetition. Stop after RISK section."
         )
-        # Pre-filter: drop lines that are pure noise (long tokens, STATUS lines, raw header blobs)
         filtered_lines = []
         for line in raw_output.splitlines():
             stripped = line.strip()
             if not stripped:
                 continue
-            # skip STATUS progress lines and raw long-token header values
             if stripped.startswith("- STATUS:") or stripped.startswith("- Running"):
                 continue
             if len(stripped) > 200:
                 continue
-            # skip lines that are mostly base64/hex (>40% non-alphanumeric-space chars)
             non_alnum = sum(1 for c in stripped if not c.isalnum() and c not in " .:/-_,()")
             if len(stripped) > 60 and non_alnum / len(stripped) > 0.35:
                 continue
             filtered_lines.append(stripped)
 
-        filtered_output = "\n".join(filtered_lines[:60])  # max 60 lines
+        filtered_output = "\n".join(filtered_lines[:_INTERPRET_MAX_LINES])
 
         user_msg = (
             f"tool={tool_name} target={target}\n"
@@ -277,7 +307,7 @@ class BaronLLM:
                     {"role": "user",   "content": user_msg},
                 ],
                 temperature=0.1,
-                max_tokens=180,
+                max_tokens=_INTERPRET_MAX_TOKENS,
                 json_mode=False,
             ).strip()
         except Exception as e:
@@ -287,6 +317,12 @@ class BaronLLM:
     def analyze_code(self, code: str, language: str = "unknown", filename: Optional[str] = None) -> Dict[str, Any]:
         if not self._loaded:
             return {"vulnerabilities": [], "summary": "AlphaLLM not loaded"}
+
+        if len(code) > _CODE_TRUNCATE_LIMIT:
+            logger.warning(
+                f"analyze_code: code truncated from {len(code)} to {_CODE_TRUNCATE_LIMIT} chars "
+                f"(file={filename or 'unknown'}) — results may be partial"
+            )
 
         system = """You are a security code reviewer. Analyze the provided code for security vulnerabilities.
 Return your response as valid JSON:
@@ -300,7 +336,7 @@ Return your response as valid JSON:
         user_msg = f"Language: {language}\n"
         if filename:
             user_msg += f"File: {filename}\n"
-        user_msg += f"\nCode:\n```\n{code[:4000]}\n```\n\nFind all security vulnerabilities."
+        user_msg += f"\nCode:\n```\n{code[:_CODE_TRUNCATE_LIMIT]}\n```\n\nFind all security vulnerabilities."
 
         try:
             raw_text = self._chat(
@@ -312,12 +348,7 @@ Return your response as valid JSON:
                 max_tokens=1024,
             )
 
-            text = raw_text.strip()
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start >= 0 and end > start:
-                text = text[start:end]
-
+            text = self._extract_json(raw_text.strip())
             parsed = json.loads(text)
             return {
                 "vulnerabilities": parsed.get("vulnerabilities", []),
@@ -338,12 +369,15 @@ Return your response as valid JSON:
                 self._server_proc.kill()
 
 
-# Singleton instance
+# Thread-safe singleton
 _baron_instance: Optional[BaronLLM] = None
+_baron_lock = threading.Lock()
 
 
 def get_baron(settings: Settings) -> BaronLLM:
     global _baron_instance
     if _baron_instance is None:
-        _baron_instance = BaronLLM(settings)
+        with _baron_lock:
+            if _baron_instance is None:
+                _baron_instance = BaronLLM(settings)
     return _baron_instance

@@ -24,6 +24,18 @@ SUPPORTED_TOOLS = [
     "nuclei",
     "hashcat",
     "gitleaks",
+    "theharvester",
+    "sublist3r",
+    "testssl",
+    "wapiti",
+    "wpscan",
+    "cewl",
+    "trivy",
+    "amass",
+    "commix",
+    "searchsploit",
+    "subdominator",
+    "httpx",
 ]
 
 # --- Pydantic models for the legacy /execute endpoint ---
@@ -97,6 +109,18 @@ DANGEROUS_FLAGS: Dict[str, List[str]] = {
     "nuclei": ["-aggressive", "--destructive"],
     "hashcat": ["-aggressive", "--destructive"],
     "gitleaks": ["-aggressive", "--destructive"],
+    "theharvester": ["-aggressive", "--destructive"],
+    "sublist3r": ["-aggressive", "--destructive"],
+    "testssl": ["-aggressive", "--destructive"],
+    "wapiti": ["-aggressive", "--destructive"],
+    "wpscan": ["--aggressive", "--destructive"],
+    "cewl": ["-aggressive", "--destructive"],
+    "trivy": ["-aggressive", "--destructive"],
+    "amass": ["-aggressive", "--destructive"],
+    "commix": ["--os-shell", "--os-pwn", "-aggressive", "--destructive"],
+    "searchsploit": ["-aggressive", "--destructive"],
+    "subdominator": ["-aggressive", "--destructive"],
+    "httpx": ["-aggressive", "--destructive"],
 }
 
 # --- Rate limiting state ---
