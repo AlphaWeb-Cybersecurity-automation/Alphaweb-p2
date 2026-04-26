@@ -1,11 +1,61 @@
+import { useState, useRef } from 'react'
 import './StatusBar.css'
 
 const SCAN_PCT = 20
+
+const TOOLS = [
+  'nmap', 'masscan', 'nikto', 'sqlmap', 'ffuf', 'gobuster',
+  'john', 'hydra', 'curl', 'tcpdump', 'nuclei', 'hashcat',
+  'gitleaks', 'theharvester', 'sublist3r', 'testssl', 'wapiti',
+  'wpscan', 'cewl', 'trivy', 'amass', 'commix', 'searchsploit',
+  'subdominator', 'httpx',
+]
 
 function langFromFile(name) {
   if (!name) return '—'
   const ext = name.split('.').pop().toLowerCase()
   return { yaml: 'YAML', json: 'JSON', html: 'HTML', log: 'LOG', apk: 'APK', txt: 'TEXT', pdf: 'PDF' }[ext] ?? ext.toUpperCase()
+}
+
+function ToolsDropup() {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const [pos, setPos] = useState({ bottom: 0, left: 0 })
+
+  function handleClick() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ bottom: window.innerHeight - r.top, left: r.left + r.width / 2 })
+    }
+    setOpen(o => !o)
+  }
+
+  return (
+    <span className="sb-dropup-wrap">
+      {open && (
+        <div
+          className="sb-dropup"
+          style={{ bottom: pos.bottom, left: pos.left, transform: 'translateX(-50%)' }}
+        >
+          <div className="sb-dropup__header">{TOOLS.length} Tools Available</div>
+          <div className="sb-dropup__list">
+            {TOOLS.map(t => (
+              <div key={t} className="sb-dropup__item">{t}</div>
+            ))}
+          </div>
+        </div>
+      )}
+      <button
+        ref={btnRef}
+        className="sb-seg sb-seg--btn sb-dropup-trigger"
+        title="Available tools"
+        onClick={handleClick}
+      >
+        <span className="sb-val sb-val--cyan">⚙ {TOOLS.length} TOOLS</span>
+        <span className="sb-val sb-val--dim">{open ? ' ▼' : ' ▲'}</span>
+      </button>
+    </span>
+  )
 }
 
 export default function StatusBar({ activeFile, termVisible, onReopenTerminal }) {
@@ -24,7 +74,7 @@ export default function StatusBar({ activeFile, termVisible, onReopenTerminal })
 
         <span className="sb-seg" title="AI Model">
           <span className="sb-key">AI Model:</span>
-          <span className="sb-val sb-val--gold">Fine-tuned-Cyber-LM</span>
+          <span className="sb-val sb-val--gold">AlphaLLM</span>
           <span className="sb-badge sb-badge--idle">Idle</span>
         </span>
 
@@ -42,7 +92,6 @@ export default function StatusBar({ activeFile, termVisible, onReopenTerminal })
           <span className="sb-val sb-val--cyan">Hyderabad</span>
         </span>
 
-        {/* Re-open terminal button when hidden */}
         {!termVisible && (
           <>
             <span className="sb-div" />
@@ -66,6 +115,10 @@ export default function StatusBar({ activeFile, termVisible, onReopenTerminal })
             <span className="sb-bar__fill" style={{ width: `${SCAN_PCT}%` }} />
           </span>
         </span>
+
+        <span className="sb-div" />
+
+        <ToolsDropup />
       </div>
 
       {/* Right */}
@@ -78,10 +131,6 @@ export default function StatusBar({ activeFile, termVisible, onReopenTerminal })
             <span className="sb-div" />
           </>
         )}
-        <span className="sb-seg" title="Cursor position">
-          <span className="sb-val sb-val--dim">Ln 22, Col 15</span>
-        </span>
-        <span className="sb-div" />
         <span className="sb-seg" title="Language">
           <span className="sb-val sb-val--cyan">{lang}</span>
         </span>

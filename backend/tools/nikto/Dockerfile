@@ -1,13 +1,4 @@
 FROM debian:stable-slim
-FROM ubuntu:22.04
-
-RUN apt update && apt install -y \
-    nikto \
-    libjson-perl \
-    libxml-writer-perl \
-    && apt clean
-
-ENTRYPOINT ["nikto"]
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -17,6 +8,8 @@ RUN apt-get update \
     libnet-ssleay-perl \
     libio-socket-ssl-perl \
     libwww-perl \
+    libjson-perl \
+    libxml-writer-perl \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt

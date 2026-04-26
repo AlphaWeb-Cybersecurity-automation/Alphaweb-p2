@@ -3,7 +3,7 @@
 ## Overview
 
 AlphaWeb is a web-based security automation platform combining:
-- **AI-driven threat analysis** via BaronLLM (local LLM inference)
+- **AI-driven threat analysis** via AlphaLLM (local LLM inference)
 - **Code vulnerability detection** using Bandit (Python), ESLint (JavaScript), and pattern-based rules
 - **Container-orchestrated security tools** — 25 tools across recon, exploitation, fuzzing, password cracking, and vulnerability scanning
 - **Interactive UI** with real-time code analysis, file upload, and terminal output streaming
@@ -71,8 +71,9 @@ alphaweb/
 - **Resource limits**: configurable memory (512m), CPU (1.0)
 - **Terminal streaming**: live output to browser console
 
-### 3. BaronLLM Integration
-- Local GGUF model inference (no external API calls)
+### 3. AlphaLLM Integration
+- Local GGUF model inference via llama-server.exe (no external API calls)
+- Numbered-fact output format — no speculation, no raw tokens
 - Context-aware code analysis fallback
 - Chat interface for security queries
 
@@ -85,8 +86,9 @@ alphaweb/
 - **Activity Bar**: Project views (Scanner, Reporting, Orchestration)
 - **SideBar**: File upload + explorer
 - **Editor**: Code viewer + live line-by-line vulnerability highlighting
-- **AgentChat**: AI-powered threat analysis (retro phosphor header)
-- **Terminal**: Real-time tool output parsing
+- **AgentChat**: AI-powered threat analysis — labels as `[AlphaLLM]`
+- **Terminal**: Real-time tool output — TOOL ORCHESTRATION CONSOLE + PROBLEMS tabs
+- **StatusBar**: AlphaLLM model indicator, Scan Progress bar, Tools drop-up (25 tools list)
 
 ---
 
@@ -114,7 +116,7 @@ pip install -r requirements.txt
 - `uvicorn[standard]` — ASGI server
 - `pydantic` — Data validation
 - `sqlalchemy` — ORM
-- `llama-cpp-python` — BaronLLM inference (local GGUF model)
+- `llama-cpp-python` — AlphaLLM inference (local GGUF model via llama-server.exe)
 - `bandit` — Python security linter
 - `semgrep` — SAST scanner (Windows encoding issues; pattern fallback used)
 
@@ -125,7 +127,7 @@ Create a `.env` file or export:
 ORCHESTRATOR_HOST=0.0.0.0
 ORCHESTRATOR_PORT=8000
 
-# BaronLLM model
+# AlphaLLM model
 BARONLLM_MODEL_PATH=models/barronllm.gguf
 BARONLLM_N_CTX=4096
 BARONLLM_N_GPU_LAYERS=35
@@ -155,8 +157,8 @@ cd backend
 python -c "from database import init_db; init_db()"
 ```
 
-#### 4. Download BaronLLM Model (Optional)
-Place your GGUF model at `backend/models/barronllm.gguf` (currently required but graceful fallback to regex patterns if unavailable).
+#### 4. Download AlphaLLM Model
+Place your GGUF model at `backend/models/barronllm.gguf`. Also requires `binaries/llama-server.exe` in the project root. Graceful fallback to keyword-based tool selection if model unavailable.
 
 #### 5. Start Backend
 ```bash
@@ -227,7 +229,7 @@ cd backend
 docker-compose -f docker-compose.tools.yml build
 ```
 
-Builds images for: nmap, sqlmap, nikto, ffuf, gobuster, john, hydra, curl, tcpdump.
+Builds all 25 tool images. Each tool has its own `Dockerfile` under `backend/tools/<toolname>/`.
 
 #### 3. Run Tool Execution
 Tools are invoked dynamically from `tool_runner.py`:
@@ -245,12 +247,53 @@ print(result.raw_output, result.exit_code)
 **Tool Timeout Map** (in `tool_runner.py`):
 ```python
 TOOL_TIMEOUTS = {
-    "curl": 60, "nmap": 300, "masscan": 120, "nikto": 600,
-    "sqlmap": 900, "ffuf": 600, "gobuster": 600, "hydra": 1800,
-    "john": 3600, "tcpdump": 60, "nuclei": 600, "hashcat": 3600,
-    "gitleaks": 300,
+    "curl": 60,       "nmap": 300,      "masscan": 120,   "nikto": 600,
+    "sqlmap": 900,    "ffuf": 600,      "gobuster": 600,  "hydra": 1800,
+    "john": 3600,     "tcpdump": 60,    "nuclei": 600,    "hashcat": 3600,
+    "gitleaks": 300,  "theharvester": 300, "sublist3r": 300, "testssl": 300,
+    "wapiti": 900,    "wpscan": 600,    "cewl": 300,      "trivy": 300,
+    "amass": 600,     "commix": 900,    "searchsploit": 60, "subdominator": 300,
+    "httpx": 120,
 }
 ```
+
+**All 25 supported tools:**
+
+| Tool | Category | Docker Image |
+|------|----------|--------------|
+| nmap | Port scanning / service discovery | `nmap:latest` |
+| masscan | Fast mass port scanning | `masscan:latest` |
+| nikto | Web server vulnerability scanning | `nikto:latest` |
+| sqlmap | SQL injection testing | `sqlmap:latest` |
+| ffuf | Web fuzzing / endpoint discovery | `ffuf:latest` |
+| gobuster | Directory brute-forcing / DNS enum | `gobuster:latest` |
+| hydra | Credential brute-forcing | `hydra:latest` |
+| john | Password hash cracking | `john:latest` |
+| curl | HTTP requests / API testing | `curl:latest` |
+| tcpdump | Network packet capture | `tcpdump:latest` |
+| nuclei | Template-based vuln scanning | `nuclei:latest` |
+| hashcat | GPU-accelerated hash cracking | `hashcat:latest` |
+| gitleaks | Git secret scanning | `gitleaks:latest` |
+| theharvester | OSINT email/subdomain harvesting | `theharvester:latest` |
+| sublist3r | Passive subdomain enumeration | `sublist3r:latest` |
+| testssl | TLS/SSL configuration auditing | `testssl:latest` |
+| wapiti | Web application vulnerability scanner | `wapiti:latest` |
+| wpscan | WordPress vulnerability scanner | `wpscan:latest` |
+| cewl | Custom wordlist generator | `cewl:latest` |
+| trivy | Container / filesystem vuln scanner | `trivy:latest` |
+| amass | DNS enumeration / asset discovery | `amass:latest` |
+| commix | Command injection detection | `commix:latest` |
+| searchsploit | Offline exploit DB search | `searchsploit:latest` |
+| subdominator | Subdomain takeover detection | `subdominator:latest` |
+| httpx | HTTP probing / web fingerprinting | `httpx:latest` |
+
+**Notes:**
+- `masscan` requires resolved IP (not hostname) — tool_runner resolves via nmap
+- `gobuster` uses built-in wordlist at `/wordlists/common.txt` inside container
+- `ffuf` accepts wordlist via stdin (`/dev/stdin`)
+- `hydra` uses URI format: `https-get://target/`
+- `testssl` image cloned from GitHub (includes required `/opt/testssl/etc/` data files)
+- `commix` image cloned from GitHub (`python3 /opt/commix/commix.py`)
 
 ---
 
@@ -399,7 +442,7 @@ Location: `backend/tools/js/.eslintrc.json`
 | `Editor` | Code viewer + analysis | activeFile, openFiles[], vulnLines |
 | `AgentChat` | AI security chat | messages[], domain, input, loading |
 | `Terminal` | Tool output console | logs[], clearKey, maximized |
-| `StatusBar` | Footer metrics | activeFile, AI status, cursor pos |
+| `StatusBar` | Footer metrics | activeFile, AlphaLLM status, Scan Progress, Tools drop-up |
 
 ### Backend Services
 
@@ -529,7 +572,7 @@ cd backend && python -c "from database import init_db; init_db()"
 |----------|---------|---------|
 | `ORCHESTRATOR_HOST` | 0.0.0.0 | FastAPI bind address |
 | `ORCHESTRATOR_PORT` | 8000 | FastAPI port |
-| `BARONLLM_MODEL_PATH` | models/barronllm.gguf | Local LLM model file |
+| `BARONLLM_MODEL_PATH` | models/barronllm.gguf | AlphaLLM GGUF model file |
 | `DATABASE_URL` | sqlite:///alphaweb.db | SQLAlchemy connection string |
 | `DOCKER_SOCKET` | unix:///var/run/docker.sock | Docker daemon socket |
 | `DOCKER_MEMORY_LIMIT` | 512m | Container memory limit |
@@ -591,7 +634,7 @@ cd backend && python -c "from database import init_db; init_db()"
 - **SQLAlchemy** — ORM
 - **Uvicorn** — ASGI server
 - **Pydantic** — Data validation
-- **llama-cpp-python** — Local LLM inference
+- **llama-cpp-python** + **llama-server.exe** — Local AlphaLLM inference
 
 ### Security Analysis
 - **Bandit** — Python SAST
@@ -609,7 +652,7 @@ cd backend && python -c "from database import init_db; init_db()"
 
 Project: AlphaWeb v0.1.0  
 Author: flexsyyy  
-Last Updated: 2026-04-19
+Last Updated: 2026-04-26
 
 ---
 

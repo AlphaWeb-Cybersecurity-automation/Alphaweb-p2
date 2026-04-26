@@ -156,9 +156,7 @@ export default function Terminal({ clearKey = 0, logs = [], maximized = false, o
 
   const TABS = [
     { id: 'console',  label: 'TOOL ORCHESTRATION CONSOLE', dot: true },
-    { id: 'problems', label: 'PROBLEMS', badge: PROBLEMS.length },
-    { id: 'output',   label: 'OUTPUT' },
-    { id: 'debug',    label: 'DEBUG' },
+    { id: 'problems', label: 'PROBLEMS' },
   ]
 
   return (
@@ -174,9 +172,6 @@ export default function Terminal({ clearKey = 0, logs = [], maximized = false, o
             >
               {tab.dot && <span className="term-tab__dot" />}
               {tab.label}
-              {tab.badge != null && (
-                <span className="term-tab__badge">{tab.badge}</span>
-              )}
             </button>
           ))}
         </div>
@@ -193,8 +188,6 @@ export default function Terminal({ clearKey = 0, logs = [], maximized = false, o
       {/* ── Panel ── */}
       {activeTab === 'console'  && <ConsolePanel  logs={logs} bottomRef={bottomRef} />}
       {activeTab === 'problems' && <ProblemsPanel />}
-      {activeTab === 'output'   && <OutputPanel />}
-      {activeTab === 'debug'    && <DebugPanel />}
     </section>
   )
 }

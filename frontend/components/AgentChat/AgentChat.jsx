@@ -180,7 +180,7 @@ export default function AgentChat({ onScanOutput }) {
           <div key={msg.id} className={`ac-msg ac-msg--${msg.role}`}>
             <div className="ac-msg__head">
               <span className="ac-msg__author">
-                {msg.role === 'user' ? '[User]' : '[BarronLLM]'}
+                {msg.role === 'user' ? '[User]' : '[AlphaLLM]'}
               </span>
               <div className="ac-msg__head-right">
                 {msg.tool && msg.tool.split(', ').map(t => (
@@ -196,7 +196,7 @@ export default function AgentChat({ onScanOutput }) {
         {loading && (
           <div className="ac-msg ac-msg--ai">
             <div className="ac-msg__head">
-              <span className="ac-msg__author">[BarronLLM]</span>
+              <span className="ac-msg__author">[AlphaLLM]</span>
             </div>
             <div className="ac-msg__body ac-msg__body--typing">
               <span className="ac-dot" /><span className="ac-dot" /><span className="ac-dot" />

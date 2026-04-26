@@ -3,6 +3,7 @@ FROM python:3.11-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
-  && pip install --no-cache-dir commix
+  && git clone --depth 1 https://github.com/commixproject/commix.git /opt/commix \
+  && (pip install --no-cache-dir -r /opt/commix/requirements.txt 2>/dev/null || true)
 
-ENTRYPOINT ["commix"]
+ENTRYPOINT ["python3", "/opt/commix/commix.py"]
